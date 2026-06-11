@@ -859,10 +859,109 @@
       font-size: 12px;
       border-bottom: 1px solid rgba(86,120,190,.08);
       transition: background .12s, box-shadow .12s;
+      cursor: pointer;
     }
     .tx-row:hover {
       background: rgba(56,217,255,.05);
       box-shadow: inset 2px 0 0 var(--cyan);
+    }
+    .tx-row.sel {
+      background: rgba(56,217,255,.10);
+      box-shadow: inset 3px 0 0 var(--cyan);
+    }
+
+    /* ── Selected transaction details column ── */
+    .txdetail-panel {
+      width: 300px;
+      flex-shrink: 0;
+      border-left: 1px solid var(--line);
+      background: rgba(8, 12, 26, .35);
+      padding: 16px 18px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--line2) transparent;
+    }
+    .txdetail-panel::-webkit-scrollbar { width: 4px; }
+    .txdetail-panel::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 2px; }
+
+    .txdetail-empty {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      line-height: 2;
+      opacity: .7;
+    }
+
+    .txd-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--cyan);
+    }
+    .txd-status {
+      display: inline-block;
+      margin-top: 6px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 2px 8px 1px;
+      clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
+    }
+    .txd-status.unconf { color: var(--orange); border: 1px solid rgba(255,163,26,.4); background: rgba(255,163,26,.07); }
+    .txd-status.conf   { color: var(--teal);   border: 1px solid rgba(53,232,200,.4); background: rgba(53,232,200,.07); }
+
+    .txd-hash-box {
+      background: rgba(22,32,60,.6);
+      border: 1px solid var(--line2);
+      border-left: 3px solid var(--cyan);
+      padding: 7px 10px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9.5px;
+      color: var(--text);
+      word-break: break-all;
+      line-height: 1.5;
+      margin: 10px 0 4px;
+    }
+
+    .io-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 10px;
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(86,120,190,.08);
+      font-size: 10px;
+    }
+    .io-row:last-child { border-bottom: none; }
+    .io-addr {
+      font-family: 'Share Tech Mono', monospace;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+    .io-val {
+      font-family: 'Share Tech Mono', monospace;
+      color: var(--green);
+      flex-shrink: 0;
+    }
+    .io-more {
+      font-size: 10px;
+      color: var(--muted);
+      padding: 4px 0 0;
+      letter-spacing: .5px;
     }
 
     .tx-row.tx-new { animation: txFlash .9s ease both; }
@@ -1218,6 +1317,11 @@
       </div>
     </div>
 
+    <!-- Selected transaction details -->
+    <div class="txdetail-panel" id="txDetailMempool">
+      <div class="txdetail-empty">Select a transaction<br>to inspect it</div>
+    </div>
+
   </div>
 
   <!-- Block detail panel (shown on block click) -->
@@ -1240,6 +1344,11 @@
         <div class="tx-scroll" id="detailTxList">
           <div class="loading-state"><div class="spin"></div> Loading transactions…</div>
         </div>
+      </div>
+
+      <!-- Selected transaction details -->
+      <div class="txdetail-panel" id="txDetailBlock">
+        <div class="txdetail-empty">Select a transaction<br>to inspect it</div>
       </div>
 
     </div>
@@ -1587,7 +1696,84 @@ function buildTxRow(tx, animate) {
     <span class="tx-rate ${rateClass(parseFloat(rate))}">${rate}</span>
     <span class="tx-val">${fmtBTC(tx.value)}</span>
     <span class="tx-seen">${tx.firstSeen ? timeAgo(tx.firstSeen) : 'now'}</span>`;
+  d.addEventListener('click', () => selectTx(tx.txid, d, 'txDetailMempool'));
   return d;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Selected transaction details (right column)
+// ─────────────────────────────────────────────────────────────────────────────
+async function selectTx(txid, rowEl, panelId) {
+  rowEl.parentElement.querySelectorAll('.tx-row.sel').forEach(r => r.classList.remove('sel'));
+  rowEl.classList.add('sel');
+
+  const panel = document.getElementById(panelId);
+  panel.innerHTML = '<div class="loading-state"><div class="spin"></div></div>';
+
+  try {
+    const tx = await get(`${API}/tx/${txid}`);
+    renderTxDetail(panel, tx);
+  } catch {
+    panel.innerHTML = '<div class="txdetail-empty" style="color:var(--red)">Failed to load<br>transaction</div>';
+  }
+}
+
+function renderTxDetail(panel, tx) {
+  const vsize   = tx.weight ? Math.ceil(tx.weight / 4) : (tx.size ?? 0);
+  const feeRate = tx.fee != null && vsize ? (tx.fee / vsize).toFixed(1) : null;
+  const outSum  = Array.isArray(tx.vout) ? tx.vout.reduce((s, o) => s + (o.value || 0), 0) : null;
+  const conf    = tx.status?.confirmed;
+
+  const field = (k, v, cls = '') => v != null
+    ? `<div class="detail-field"><span class="dk">${k}</span><span class="dv ${cls}">${v}</span></div>`
+    : '';
+  const section = label => `<div class="detail-section-label">${label}</div>`;
+
+  const MAX_IO = 12;
+  const ioRows = (list, render) => {
+    const rows = list.slice(0, MAX_IO).map(render).join('');
+    const more = list.length > MAX_IO ? `<div class="io-more">+${list.length - MAX_IO} more…</div>` : '';
+    return rows + more;
+  };
+
+  const inputs = Array.isArray(tx.vin) ? ioRows(tx.vin, vin => vin.is_coinbase
+    ? `<div class="io-row"><span class="io-addr" style="color:var(--orange)">Coinbase (new coins)</span><span class="io-val"></span></div>`
+    : `<div class="io-row">
+         <span class="io-addr" title="${vin.prevout?.scriptpubkey_address ?? ''}">${vin.prevout?.scriptpubkey_address ?? vin.prevout?.scriptpubkey_type ?? '—'}</span>
+         <span class="io-val">${vin.prevout?.value != null ? fmtBTC(vin.prevout.value) : ''}</span>
+       </div>`) : '';
+
+  const outputs = Array.isArray(tx.vout) ? ioRows(tx.vout, out => `
+    <div class="io-row">
+      <span class="io-addr" title="${out.scriptpubkey_address ?? ''}">${out.scriptpubkey_address ?? out.scriptpubkey_type ?? '—'}</span>
+      <span class="io-val">${out.value != null ? fmtBTC(out.value) : ''}</span>
+    </div>`) : '';
+
+  panel.innerHTML = `
+    <div class="txd-title">Transaction</div>
+    <div>
+      <span class="txd-status ${conf ? 'conf' : 'unconf'}">
+        ${conf ? `Confirmed · #${tx.status.block_height}` : 'Unconfirmed'}
+      </span>
+    </div>
+    <div class="txd-hash-box">${tx.txid}</div>
+
+    ${section('Summary')}
+    ${field('Fee',          tx.fee != null ? `${tx.fee.toLocaleString()} sat` : null, 'orange')}
+    ${field('Fee rate',     feeRate != null ? `${feeRate} sat/vB` : null)}
+    ${field('Output value', outSum != null ? fmtBTC(outSum) : null, 'green')}
+    ${field('vSize',        vsize ? `${vsize.toLocaleString()} vB` : null)}
+    ${field('Size',         tx.size   != null ? `${tx.size.toLocaleString()} B`    : null)}
+    ${field('Weight',       tx.weight != null ? `${tx.weight.toLocaleString()} WU` : null)}
+    ${field('Version',      tx.version)}
+    ${field('Locktime',     tx.locktime ? tx.locktime.toLocaleString() : null)}
+    ${conf && tx.status.block_time ? field('Confirmed', new Date(tx.status.block_time * 1000).toLocaleString()) : ''}
+
+    ${section(`Inputs (${tx.vin?.length ?? 0})`)}
+    ${inputs}
+
+    ${section(`Outputs (${tx.vout?.length ?? 0})`)}
+    ${outputs}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1678,6 +1864,8 @@ async function openBlockDetail(blk, cardEl) {
     '<div class="loading-state"><div class="spin"></div></div>';
   document.getElementById('detailTxList').innerHTML =
     '<div class="loading-state"><div class="spin"></div> Loading transactions…</div>';
+  document.getElementById('txDetailBlock').innerHTML =
+    '<div class="txdetail-empty">Select a transaction<br>to inspect it</div>';
 
   // Fetch full block data and transactions in parallel.
   // /api/block/:hash guarantees all header fields (nonce, bits, merkle_root…)
@@ -1811,6 +1999,7 @@ function renderDetailTxs(txs) {
       <span class="dtx-vsize tx-vsize">${vsize}</span>
       <span class="dtx-fee tx-vsize">${fee}</span>
       <span class="dtx-rate tx-rate ${rateClass(parseFloat(feeRate))}">${feeRate}</span>`;
+    d.addEventListener('click', () => selectTx(tx.txid, d, 'txDetailBlock'));
     list.appendChild(d);
   });
 }
