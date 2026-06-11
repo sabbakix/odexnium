@@ -1,7 +1,895 @@
-<html>
-  <head>
-  </head>
-  <body>
-    <h1> Odexnium </h1>
-  </body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Odexnium — Bitcoin Explorer</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --orange: #f7931a;
+      --orange-glow: rgba(247, 147, 26, 0.25);
+      --green: #3fb950;
+      --red: #f85149;
+      --blue: #58a6ff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-coin {
+      width: 42px;
+      height: 42px;
+      background: var(--orange);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      color: var(--bg);
+      font-weight: 900;
+      flex-shrink: 0;
+      box-shadow: 0 0 18px var(--orange-glow);
+    }
+
+    .logo-text {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .logo-name {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--orange);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      line-height: 1;
+      text-shadow: 0 0 20px rgba(247, 147, 26, 0.4);
+    }
+
+    .logo-sub {
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+    }
+
+    .header-pills {
+      display: flex;
+      gap: 12px;
+    }
+
+    .pill {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pill-label { color: var(--muted); }
+    .pill-value { color: var(--text); font-weight: 600; }
+    .pill-value.orange { color: var(--orange); }
+    .pill-value.green  { color: var(--green); }
+
+    /* ── Section headers ── */
+    .section-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .section-bar .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--orange);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.35; }
+    }
+
+    /* ── Blockchain chain strip ── */
+    .chain-strip {
+      height: 180px;
+      flex-shrink: 0;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      overflow-x: auto;
+      overflow-y: hidden;
+      gap: 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .chain-strip::-webkit-scrollbar { height: 4px; }
+    .chain-strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ── Block cards ── */
+    .block-card {
+      flex-shrink: 0;
+      width: 148px;
+      height: 140px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px 10px;
+      cursor: default;
+      transition: border-color .2s, box-shadow .2s, transform .2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .block-card::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--orange);
+      border-radius: 8px 8px 0 0;
+    }
+
+    .block-card:hover {
+      border-color: var(--orange);
+      box-shadow: 0 6px 20px var(--orange-glow);
+      transform: translateY(-3px);
+    }
+
+    .block-card.is-new {
+      animation: blockIn .5s cubic-bezier(.22,.68,0,1.2) both;
+      border-color: var(--orange);
+      box-shadow: 0 0 24px var(--orange-glow);
+    }
+
+    @keyframes blockIn {
+      from { opacity: 0; transform: translateX(-20px) scale(.92); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    /* Pending block — dashed border, scanning stripe */
+    .block-card.pending {
+      border-style: dashed;
+      border-color: rgba(247,147,26,.45);
+    }
+
+    .block-card.pending::after {
+      background: linear-gradient(90deg, transparent, var(--orange), transparent);
+      animation: scan 2.4s linear infinite;
+    }
+
+    @keyframes scan {
+      from { transform: translateX(-100%); }
+      to   { transform: translateX(200%); }
+    }
+
+    .block-height {
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .block-card.pending .block-height { color: rgba(247,147,26,.6); }
+    .block-card:not(.pending) .block-height { color: var(--orange); }
+
+    .block-badge {
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .block-hash {
+      font-size: 9px;
+      color: var(--muted);
+      margin-top: 5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .block-meta {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+    }
+
+    .meta-label { color: var(--muted); }
+    .meta-val   { color: var(--text); font-weight: 500; }
+    .meta-val.orange { color: var(--orange); }
+
+    /* ── Chain connectors ── */
+    .connector {
+      flex-shrink: 0;
+      width: 36px;
+      height: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--orange);
+      opacity: .55;
+    }
+
+    /* ── Bottom split: histogram + tx list ── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .mempool-body {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    /* Fee histogram */
+    .histogram-panel {
+      width: 260px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden;
+    }
+
+    .panel-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .7px;
+      color: var(--muted);
+    }
+
+    .histo-rows {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      justify-content: center;
+    }
+
+    .histo-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 10px;
+    }
+
+    .histo-label {
+      width: 56px;
+      text-align: right;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .histo-track {
+      flex: 1;
+      height: 13px;
+      background: var(--surface2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .histo-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 1.2s ease;
+      min-width: 2px;
+    }
+
+    .histo-count {
+      width: 44px;
+      text-align: right;
+      color: var(--muted);
+      font-size: 9px;
+      flex-shrink: 0;
+    }
+
+    /* Fee recommended pills row */
+    .fee-pills {
+      display: flex;
+      gap: 6px;
+    }
+
+    .fee-pill {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 5px 4px;
+      text-align: center;
+      font-size: 9px;
+    }
+
+    .fee-pill .fp-label { color: var(--muted); display: block; }
+    .fee-pill .fp-val   { font-weight: 700; font-size: 12px; }
+
+    /* Transaction list */
+    .tx-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .tx-head {
+      display: flex;
+      padding: 6px 16px;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .col-hash  { flex: 2.5; }
+    .col-vsize { flex: 1; text-align: right; }
+    .col-rate  { flex: 1; text-align: right; }
+    .col-val   { flex: 1.2; text-align: right; }
+    .col-seen  { flex: 1; text-align: right; }
+
+    .tx-scroll {
+      flex: 1;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .tx-scroll::-webkit-scrollbar { width: 4px; }
+    .tx-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .tx-row {
+      display: flex;
+      padding: 5px 16px;
+      font-size: 11px;
+      border-bottom: 1px solid rgba(48,54,61,.45);
+      transition: background .12s;
+    }
+
+    .tx-row:hover { background: var(--surface2); }
+
+    .tx-row.tx-new {
+      animation: txFlash .4s ease both;
+    }
+
+    @keyframes txFlash {
+      from { background: rgba(247,147,26,.1); }
+      to   { background: transparent; }
+    }
+
+    .tx-hash { flex: 2.5; color: var(--blue); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tx-vsize { flex: 1; text-align: right; color: var(--muted); }
+    .tx-rate  { flex: 1; text-align: right; font-weight: 600; }
+    .tx-val   { flex: 1.2; text-align: right; color: var(--green); }
+    .tx-seen  { flex: 1; text-align: right; color: var(--muted); font-size: 10px; }
+
+    .rate-hi  { color: var(--red); }
+    .rate-mid { color: var(--orange); }
+    .rate-lo  { color: var(--green); }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      height: 28px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .live-dot {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      margin-right: 6px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    /* ── Generic loading state ── */
+    .loading-state {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      height: 100%;
+      width: 100%;
+    }
+
+    .spin {
+      width: 16px; height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--orange);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Tooltip ── */
+    #tip {
+      position: fixed;
+      display: none;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 10px 14px;
+      font-size: 11px;
+      pointer-events: none;
+      z-index: 200;
+      max-width: 300px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    }
+
+    #tip .tip-h { color: var(--orange); font-weight: 700; margin-bottom: 5px; }
+    #tip .tip-hash { font-size: 8.5px; color: var(--muted); word-break: break-all; margin-bottom: 6px; }
+    #tip .tip-row { display: flex; justify-content: space-between; gap: 16px; margin-top: 2px; }
+    #tip .tip-k { color: var(--muted); }
+    #tip .tip-v { color: var(--text); font-weight: 500; }
+  </style>
+</head>
+<body>
+
+<!-- ══ Header ══════════════════════════════════════════════════════ -->
+<header>
+  <div class="logo">
+    <div class="logo-coin">₿</div>
+    <div class="logo-text">
+      <span class="logo-name">Odexnium</span>
+      <span class="logo-sub">Bitcoin Explorer</span>
+    </div>
+  </div>
+  <div class="header-pills" id="headerPills">
+    <div class="pill">
+      <span class="pill-label">Height</span>
+      <span class="pill-value orange" id="phHeight">—</span>
+    </div>
+    <div class="pill">
+      <span class="pill-label">Mempool</span>
+      <span class="pill-value" id="phMempool">—</span>
+    </div>
+    <div class="pill">
+      <span class="pill-label">Fast fee</span>
+      <span class="pill-value green" id="phFast">—</span>
+    </div>
+    <div class="pill">
+      <span class="pill-label">Half-hour fee</span>
+      <span class="pill-value" id="phHalf">—</span>
+    </div>
+  </div>
+</header>
+
+<!-- ══ Blockchain strip ══════════════════════════════════════════════ -->
+<div class="section-bar">
+  <div class="dot"></div>
+  Blockchain — Latest Confirmed Blocks
+</div>
+
+<div class="chain-strip" id="chainStrip">
+  <div class="loading-state"><div class="spin"></div> Loading blockchain…</div>
+</div>
+
+<!-- ══ Mempool ═══════════════════════════════════════════════════════ -->
+<div class="section-bar">
+  <div class="dot"></div>
+  Mempool — Unconfirmed Transactions
+</div>
+
+<main>
+  <div class="mempool-body">
+
+    <!-- Histogram + fee pills -->
+    <div class="histogram-panel">
+      <div class="panel-title">Fee Distribution (sat/vB)</div>
+      <div class="fee-pills" id="feePills">
+        <div class="fee-pill">
+          <span class="fp-label">Fastest</span>
+          <span class="fp-val rate-hi"  id="fpFast">—</span>
+        </div>
+        <div class="fee-pill">
+          <span class="fp-label">30 min</span>
+          <span class="fp-val rate-mid" id="fpHalf">—</span>
+        </div>
+        <div class="fee-pill">
+          <span class="fp-label">1 hr</span>
+          <span class="fp-val rate-lo"  id="fpHour">—</span>
+        </div>
+      </div>
+      <div class="histo-rows" id="histoRows">
+        <div class="loading-state"><div class="spin"></div></div>
+      </div>
+    </div>
+
+    <!-- Transaction list -->
+    <div class="tx-panel">
+      <div class="tx-head">
+        <span class="col-hash">Transaction ID</span>
+        <span class="col-vsize">vBytes</span>
+        <span class="col-rate">sat/vB</span>
+        <span class="col-val">Value</span>
+        <span class="col-seen">Seen</span>
+      </div>
+      <div class="tx-scroll" id="txScroll">
+        <div class="loading-state"><div class="spin"></div> Loading mempool…</div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- ══ Footer ══════════════════════════════════════════════════════ -->
+<footer>
+  <div><span class="live-dot"></span><span id="statusMsg">Connecting…</span></div>
+  <div>Data · mempool.space · auto-refresh every 30 s</div>
+</footer>
+
+<div id="tip"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Config & state
+// ─────────────────────────────────────────────────────────────────────────────
+const API = 'https://mempool.space/api';
+
+let blocks        = [];
+let mempoolStats  = null;
+let feeEstimates  = null;
+let recentTxs     = [];
+let prevTopHeight = null;
+let knownTxIds    = new Set();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+const trunc = (h, n = 14) => h ? `${h.slice(0, n)}…` : '—';
+
+const timeAgo = ts => {
+  const s = Math.floor(Date.now() / 1000) - ts;
+  if (s < 5)    return 'now';
+  if (s < 60)   return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400)return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+};
+
+const fmtSize = b => {
+  if (b < 1000)     return `${b}`;
+  if (b < 1_000_000) return `${(b / 1e3).toFixed(1)}k`;
+  return `${(b / 1e6).toFixed(2)}M`;
+};
+
+const fmtBTC = sats => {
+  if (sats == null) return '—';
+  const btc = sats / 1e8;
+  return btc < 0.001 ? `${sats.toLocaleString()} s` : `${btc.toFixed(4)} ₿`;
+};
+
+const rateClass = r => r > 50 ? 'rate-hi' : r > 10 ? 'rate-mid' : 'rate-lo';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fetch
+// ─────────────────────────────────────────────────────────────────────────────
+const get = url => fetch(url).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+
+async function fetchAll() {
+  const [blks, mp, txs, fees] = await Promise.all([
+    get(`${API}/v1/blocks`),
+    get(`${API}/mempool`),
+    get(`${API}/mempool/recent`),
+    get(`${API}/v1/fees/recommended`),
+  ]);
+  return { blks, mp, txs, fees };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Render: header pills
+// ─────────────────────────────────────────────────────────────────────────────
+function updateHeader() {
+  if (blocks.length)   document.getElementById('phHeight').textContent  = `#${blocks[0].height.toLocaleString()}`;
+  if (mempoolStats)    document.getElementById('phMempool').textContent = `${mempoolStats.count.toLocaleString()} txs`;
+  if (feeEstimates) {
+    document.getElementById('phFast').textContent = `${feeEstimates.fastestFee} s/vB`;
+    document.getElementById('phHalf').textContent = `${feeEstimates.halfHourFee} s/vB`;
+    document.getElementById('fpFast').textContent = feeEstimates.fastestFee;
+    document.getElementById('fpHalf').textContent = feeEstimates.halfHourFee;
+    document.getElementById('fpHour').textContent = feeEstimates.hourFee;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Render: blockchain chain strip
+// ─────────────────────────────────────────────────────────────────────────────
+function renderChain() {
+  const strip = document.getElementById('chainStrip');
+  strip.innerHTML = '';
+
+  // Pending (mempool) card — newest on the left
+  strip.appendChild(buildPendingCard());
+  strip.appendChild(buildConnector());
+
+  blocks.forEach((blk, i) => {
+    const isNew = i === 0 && prevTopHeight !== null && blk.height > prevTopHeight;
+    strip.appendChild(buildBlockCard(blk, isNew));
+    if (i < blocks.length - 1) strip.appendChild(buildConnector());
+  });
+}
+
+function buildPendingCard() {
+  const d = document.createElement('div');
+  d.className = 'block-card pending';
+
+  const nextH  = blocks.length ? blocks[0].height + 1 : '—';
+  const count  = mempoolStats ? mempoolStats.count.toLocaleString() : '…';
+  const vsizeMB = mempoolStats ? (mempoolStats.vsize / 1e6).toFixed(2) + ' MvB' : '…';
+  const fee    = feeEstimates  ? `${feeEstimates.fastestFee} s/vB` : '…';
+
+  d.innerHTML = `
+    <div class="block-height">#${nextH}</div>
+    <div class="block-badge">next block · pending</div>
+    <div class="block-hash">MEMPOOL</div>
+    <div class="block-meta">
+      <div class="meta-row"><span class="meta-label">pending txs</span><span class="meta-val">${count}</span></div>
+      <div class="meta-row"><span class="meta-label">vsize</span><span class="meta-val">${vsizeMB}</span></div>
+      <div class="meta-row"><span class="meta-label">fee (fast)</span><span class="meta-val orange">${fee}</span></div>
+    </div>`;
+  return d;
+}
+
+function buildBlockCard(blk, isNew) {
+  const d = document.createElement('div');
+  d.className = `block-card${isNew ? ' is-new' : ''}`;
+
+  const miner  = blk.extras?.pool?.name || blk.extras?.miner || '';
+  const sizeStr = blk.size ? `${fmtSize(blk.size)}B` : `${(blk.weight / 4e6).toFixed(2)}MvB`;
+
+  d.innerHTML = `
+    <div class="block-height">#${blk.height.toLocaleString()}</div>
+    ${miner ? `<div class="block-badge">${miner}</div>` : '<div class="block-badge">&nbsp;</div>'}
+    <div class="block-hash" title="${blk.id}">${trunc(blk.id, 16)}</div>
+    <div class="block-meta">
+      <div class="meta-row"><span class="meta-label">txs</span><span class="meta-val">${blk.tx_count.toLocaleString()}</span></div>
+      <div class="meta-row"><span class="meta-label">size</span><span class="meta-val">${sizeStr}</span></div>
+      <div class="meta-row"><span class="meta-label">age</span><span class="meta-val">${timeAgo(blk.timestamp)}</span></div>
+    </div>`;
+
+  d.addEventListener('mouseenter', e => showTip(e, blk));
+  d.addEventListener('mouseleave', hideTip);
+  return d;
+}
+
+function buildConnector() {
+  const d = document.createElement('div');
+  d.className = 'connector';
+  d.innerHTML = `
+    <svg width="36" height="16" viewBox="0 0 36 16" fill="none">
+      <line x1="2" y1="8" x2="28" y2="8" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/>
+      <polyline points="22,3 30,8 22,13" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+    </svg>`;
+  return d;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Render: fee histogram
+// ─────────────────────────────────────────────────────────────────────────────
+const BUCKETS = [
+  { label: '1–2',    min: 1,   max: 2 },
+  { label: '2–5',    min: 2,   max: 5 },
+  { label: '5–10',   min: 5,   max: 10 },
+  { label: '10–25',  min: 10,  max: 25 },
+  { label: '25–50',  min: 25,  max: 50 },
+  { label: '50–100', min: 50,  max: 100 },
+  { label: '100+',   min: 100, max: Infinity },
+];
+
+function renderHistogram() {
+  const rows = document.getElementById('histoRows');
+  if (!mempoolStats?.fee_histogram) return;
+
+  const hist = mempoolStats.fee_histogram; // [[feerate, vsize], ...]
+
+  const data = BUCKETS.map(b => {
+    const vsize = hist
+      .filter(([r]) => r >= b.min && r < b.max)
+      .reduce((s, [, v]) => s + v, 0);
+    return { ...b, vsize };
+  });
+
+  const maxV = Math.max(...data.map(b => b.vsize), 1);
+  const color = b => b.min >= 50 ? '#f85149' : b.min >= 10 ? '#f7931a' : '#3fb950';
+
+  rows.innerHTML = data.map(b => `
+    <div class="histo-row">
+      <span class="histo-label">${b.label}</span>
+      <div class="histo-track">
+        <div class="histo-fill" style="width:${(b.vsize/maxV*100).toFixed(1)}%;background:${color(b)}"></div>
+      </div>
+      <span class="histo-count">${fmtSize(b.vsize)}vB</span>
+    </div>`).join('');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Render: transaction list
+// ─────────────────────────────────────────────────────────────────────────────
+function renderTxList(fresh = false) {
+  const scroll = document.getElementById('txScroll');
+
+  if (!recentTxs.length) {
+    scroll.innerHTML = '<div class="loading-state">No transactions</div>';
+    return;
+  }
+
+  if (fresh) {
+    scroll.innerHTML = '';
+    recentTxs.forEach(tx => scroll.appendChild(buildTxRow(tx, false)));
+    return;
+  }
+
+  // Prepend new txs with flash animation
+  const newTxs = recentTxs.filter(tx => !knownTxIds.has(tx.txid));
+  newTxs.reverse().forEach(tx => {
+    const row = buildTxRow(tx, true);
+    scroll.insertBefore(row, scroll.firstChild);
+  });
+
+  // Trim to 150 rows
+  while (scroll.children.length > 150) scroll.removeChild(scroll.lastChild);
+}
+
+function buildTxRow(tx, animate) {
+  const d    = document.createElement('div');
+  d.className = `tx-row${animate ? ' tx-new' : ''}`;
+  const rate = tx.fee && tx.vsize ? (tx.fee / tx.vsize).toFixed(1) : '?';
+  d.innerHTML = `
+    <span class="tx-hash" title="${tx.txid}">${trunc(tx.txid, 18)}</span>
+    <span class="tx-vsize">${tx.vsize ?? '—'}</span>
+    <span class="tx-rate ${rateClass(parseFloat(rate))}">${rate}</span>
+    <span class="tx-val">${fmtBTC(tx.value)}</span>
+    <span class="tx-seen">${tx.firstSeen ? timeAgo(tx.firstSeen) : 'now'}</span>`;
+  return d;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tooltip
+// ─────────────────────────────────────────────────────────────────────────────
+const tip = document.getElementById('tip');
+
+function showTip(e, blk) {
+  const reward = blk.extras?.reward;
+  const fees   = blk.extras?.totalFees;
+  const miner  = blk.extras?.pool?.name || blk.extras?.miner || '—';
+  const avgFeeRate = blk.extras?.avgFeeRate;
+
+  tip.innerHTML = `
+    <div class="tip-h">#${blk.height.toLocaleString()}</div>
+    <div class="tip-hash">${blk.id}</div>
+    <div class="tip-row"><span class="tip-k">Time</span><span class="tip-v">${new Date(blk.timestamp * 1000).toLocaleString()}</span></div>
+    <div class="tip-row"><span class="tip-k">Transactions</span><span class="tip-v">${blk.tx_count.toLocaleString()}</span></div>
+    ${miner !== '—' ? `<div class="tip-row"><span class="tip-k">Miner</span><span class="tip-v">${miner}</span></div>` : ''}
+    ${reward   != null ? `<div class="tip-row"><span class="tip-k">Reward</span><span class="tip-v">${fmtBTC(reward)}</span></div>` : ''}
+    ${fees     != null ? `<div class="tip-row"><span class="tip-k">Total fees</span><span class="tip-v">${fmtBTC(fees)}</span></div>` : ''}
+    ${avgFeeRate != null ? `<div class="tip-row"><span class="tip-k">Avg fee rate</span><span class="tip-v">${avgFeeRate} sat/vB</span></div>` : ''}
+    <div class="tip-row"><span class="tip-k">Prev hash</span><span class="tip-v" style="font-size:8.5px;color:var(--muted)">${trunc(blk.previousblockhash || 'genesis', 20)}</span></div>`;
+
+  tip.style.display = 'block';
+  placeTip(e);
+}
+
+function hideTip() { tip.style.display = 'none'; }
+
+function placeTip(e) {
+  const x = e.clientX + 16, y = e.clientY + 16;
+  tip.style.left = `${Math.min(x, window.innerWidth  - 320)}px`;
+  tip.style.top  = `${Math.min(y, window.innerHeight - 200)}px`;
+}
+
+document.addEventListener('mousemove', e => { if (tip.style.display === 'block') placeTip(e); });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main refresh cycle
+// ─────────────────────────────────────────────────────────────────────────────
+async function refresh(isFirst = false) {
+  const status = document.getElementById('statusMsg');
+  try {
+    status.textContent = 'Fetching…';
+
+    const { blks, mp, txs, fees } = await fetchAll();
+
+    const prevH = blocks.length ? blocks[0].height : null;
+
+    blocks       = blks;
+    mempoolStats = mp;
+    feeEstimates = fees;
+    recentTxs    = txs;
+
+    renderChain();
+    updateHeader();
+    renderHistogram();
+    renderTxList(isFirst);
+
+    if (prevH !== null && blocks[0].height > prevH) {
+      status.textContent = `⛏ New block #${blocks[0].height.toLocaleString()} confirmed — ${timeAgo(blocks[0].timestamp)} ago`;
+    } else {
+      status.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+    }
+
+    prevTopHeight = prevH;
+    knownTxIds = new Set(txs.map(t => t.txid));
+
+  } catch (err) {
+    status.textContent = `Error: ${err.message}`;
+    console.error(err);
+  }
+}
+
+refresh(true);
+setInterval(() => refresh(false), 30_000);
+</script>
+</body>
 </html>
