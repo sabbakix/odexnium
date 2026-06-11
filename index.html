@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Odexnium — Blockchain Command Center</title>
+  <title>Odexnium — Blockchain Services</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -478,38 +478,125 @@
       to   { opacity: 0; transform: scale(1); }
     }
 
-    /* ── PENDING block — the forge ─────────────────────────────── */
-    @property --border-angle {
-      syntax: '<angle>';
-      initial-value: 0deg;
-      inherits: false;
+    /* ── Forge clock — elapsed time since last block + next-block odds ── */
+    .forge-clock {
+      flex-shrink: 0;
+      width: 220px;
+      margin-bottom: 12px;
+      background: linear-gradient(160deg, rgba(22,32,62,.92), rgba(9,13,28,.95));
+      border: 1px solid rgba(255,163,26,.30);
+      border-radius: 4px;
+      padding: 9px 14px 10px;
+      text-align: center;
+    }
+    .fc-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .fc-time {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 27px;
+      line-height: 1.1;
+      letter-spacing: 2px;
+      color: var(--orange);
+      text-shadow: 0 0 14px rgba(255,163,26,.4);
+      margin-top: 2px;
+    }
+    .fc-colon { animation: colonBlink 1s steps(1) infinite; }
+    @keyframes colonBlink { 50% { opacity: .15; } }
+    .fc-prob-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-top: 7px;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .fc-prob-val {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      letter-spacing: .5px;
+    }
+    .fc-prob-track {
+      margin-top: 4px;
+      height: 6px;
+      background: rgba(86,120,190,.12);
+      clip-path: polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%);
+      overflow: hidden;
+    }
+    .fc-prob-fill {
+      height: 100%;
+      width: 0%;
+      transition: width 1s linear, background .5s;
+      box-shadow: 0 0 8px currentColor;
     }
 
+    /* ── PENDING block — the forge ─────────────────────────────── */
     .block-card.pending {
       --tc: var(--orange); --tcg: 255,163,26;
       border: 2px solid transparent;
-      background:
-        linear-gradient(160deg, rgba(26,22,14,.96), rgba(12,10,6,.97)) padding-box,
-        repeating-conic-gradient(
-          from var(--border-angle),
-          rgba(255,163,26,.95) 0deg 8deg,
-          rgba(255,163,26,.06) 8deg 22deg
-        ) border-box;
-      animation: pendingBorderSpin 7s linear infinite,
-                 pendingGlow 1.4s ease-in-out infinite;
+      background: linear-gradient(160deg, rgba(26,22,14,.96), rgba(12,10,6,.97));
+      animation: pendingPulse 7s ease-in-out infinite;
     }
     .block-card.pending::before, .block-card.pending::after { display: none; }
+    .block-card.pending.selected { border-color: transparent !important; }
 
-    @keyframes pendingBorderSpin { to { --border-angle: 360deg; } }
-    @keyframes pendingGlow {
+    /* dashed border that slowly rotates around the card (SVG stroke march) */
+    .forge-border {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .forge-border rect {
+      x: 1px; y: 1px;
+      width: calc(100% - 2px);
+      height: calc(100% - 2px);
+      rx: 3px;
+      fill: none;
+      stroke: rgba(255,163,26,.70);
+      stroke-width: 2px;
+      stroke-dasharray: 10 7;
+      animation: borderMarch 8s linear infinite;
+    }
+    .block-card.pending.selected .forge-border rect { stroke: var(--cyan); }
+    /* -170 is a multiple of the 17px dash period, so the loop is seamless */
+    @keyframes borderMarch { to { stroke-dashoffset: -170px; } }
+    /* visible breathing — brightness + glow pulse, size stays fixed */
+    @keyframes pendingPulse {
       0%, 100% {
-        box-shadow: 0 0 12px rgba(255,163,26,.18), 0 0 30px rgba(255,140,20,.08),
-                    inset 0 0 14px rgba(255,163,26,.05);
+        filter: brightness(.96);
+        box-shadow: 0 0 8px  rgba(255,163,26,.10), 0 0 20px rgba(255,140,20,.04),
+                    inset 0 0 10px rgba(255,163,26,.03);
       }
       50% {
-        box-shadow: 0 0 26px rgba(255,163,26,.45), 0 0 56px rgba(255,140,20,.18),
-                    inset 0 0 22px rgba(255,163,26,.12);
+        filter: brightness(1.12);
+        box-shadow: 0 0 16px rgba(255,163,26,.26), 0 0 36px rgba(255,140,20,.10),
+                    inset 0 0 14px rgba(255,163,26,.06);
       }
+    }
+
+    /* dedicated pulsing ring inside the pending card — independent
+       element with a plain animation so nothing can override it */
+    .forge-ring {
+      position: absolute;
+      inset: 3px;
+      border: 2px solid var(--orange);
+      border-radius: 3px;
+      pointer-events: none;
+      animation: forgeRing 7s ease-in-out infinite;
+    }
+    @keyframes forgeRing {
+      0%, 100% { opacity: .06; box-shadow: 0 0 3px  rgba(255,163,26,.08), inset 0 0 3px  rgba(255,163,26,.05); }
+      50%      { opacity: .45; box-shadow: 0 0 10px rgba(255,163,26,.30), inset 0 0 8px  rgba(255,163,26,.12); }
     }
 
     /* forge ember core behind pending content */
@@ -518,9 +605,9 @@
       left: 50%; top: 54%;
       width: 130px; height: 130px;
       transform: translate(-50%, -50%);
-      background: radial-gradient(circle, rgba(255,140,20,.20), transparent 65%);
+      background: radial-gradient(circle, rgba(255,140,20,.10), transparent 65%);
       pointer-events: none;
-      animation: corePulse 1.4s ease-in-out infinite;
+      animation: corePulse 7s ease-in-out infinite;
     }
     @keyframes corePulse {
       0%, 100% { opacity: .5; transform: translate(-50%,-50%) scale(.9); }
@@ -537,11 +624,6 @@
       95%           { opacity: 1; }
       97%           { opacity: .7; }
     }
-
-    .tier-tag.forging {
-      animation: forgeTagBlink 1.1s steps(2) infinite;
-    }
-    @keyframes forgeTagBlink { 50% { background: rgba(255,163,26,.28); } }
 
     .scramble-hash {
       font-family: 'Share Tech Mono', monospace;
@@ -634,20 +716,15 @@
     /* ── Selected card ── */
     .block-card.selected {
       border-color: var(--cyan) !important;
-      box-shadow: 0 0 22px rgba(56,217,255,.35), inset 0 0 18px rgba(56,217,255,.06) !important;
       transform: translateX(4px);
+    }
+    /* !important would silence the pending card's pulse animation,
+       so the selected glow applies to mined blocks only */
+    .block-card.selected:not(.pending) {
+      box-shadow: 0 0 22px rgba(56,217,255,.35), inset 0 0 18px rgba(56,217,255,.06) !important;
     }
     .block-card.selected::before { border-color: var(--cyan); }
     .block-card.selected::after  { border-color: var(--cyan); }
-    .block-card.pending.selected {
-      background:
-        linear-gradient(160deg, rgba(26,22,14,.96), rgba(12,10,6,.97)) padding-box,
-        repeating-conic-gradient(
-          from var(--border-angle),
-          rgba(255,200,80,1)    0deg 8deg,
-          rgba(255,163,26,.20)  8deg 22deg
-        ) border-box;
-    }
 
     /* ════════════════════════════════════════════════════════════════
        MAIN / MEMPOOL
@@ -1064,9 +1141,13 @@
     #tip .tip-k { color: var(--muted); font-weight: 600; }
     #tip .tip-v { color: var(--text); font-weight: 600; font-family: 'Share Tech Mono', monospace; font-size: 11px; }
 
-    /* ── Reduced motion ── */
+    /* ── Reduced motion — tone down decorative FX only; the forge pulse
+         is a status indicator and must keep running ── */
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+      .bg-grid, header::after, .logo-coin, .fg-fill::after,
+      .connector .flow, .block-card.t0, .forge-core {
+        animation: none !important;
+      }
     }
   </style>
 </head>
@@ -1286,7 +1367,7 @@ async function fetchAll() {
 // Render: header pills
 // ─────────────────────────────────────────────────────────────────────────────
 function updateHeader() {
-  if (blocks.length)   document.getElementById('phHeight').textContent  = `#${blocks[0].height.toLocaleString()}`;
+  if (blocks.length)   document.getElementById('phHeight').textContent  = `#${blocks[0].height}`;
   if (mempoolStats)    document.getElementById('phMempool').textContent = `${mempoolStats.count.toLocaleString()} txs`;
   if (feeEstimates) {
     document.getElementById('phFast').textContent = `${feeEstimates.fastestFee} s/vB`;
@@ -1304,7 +1385,8 @@ function renderChain() {
   const strip = document.getElementById('chainStrip');
   strip.innerHTML = '';
 
-  // The forge — pending block sits at the very top
+  // Forge clock + the pending block sit at the very top
+  strip.appendChild(buildClockPanel());
   strip.appendChild(buildPendingCard());
   strip.appendChild(buildConnector(0));
 
@@ -1314,6 +1396,43 @@ function renderChain() {
     if (i < blocks.length - 1) strip.appendChild(buildConnector(tierFor(i + 1)));
   });
 }
+
+function buildClockPanel() {
+  const d = document.createElement('div');
+  d.className = 'forge-clock';
+  d.innerHTML = `
+    <div class="fc-label">Since last block</div>
+    <div class="fc-time" id="fcTime">--<span class="fc-colon">:</span>--</div>
+    <div class="fc-prob-row">
+      <span>Next block odds</span>
+      <span class="fc-prob-val" id="fcProbVal">—</span>
+    </div>
+    <div class="fc-prob-track"><div class="fc-prob-fill" id="fcProbFill"></div></div>`;
+  return d;
+}
+
+// Ticks every second: elapsed MM:SS since the last block, and the chance the
+// next block has been found by now — exponential arrival, 10 min average:
+// P = 1 - e^(-t/600). ~50% at ~7 min, ~63% at 10 min, climbing toward 100%.
+function updateForgeClock() {
+  const tEl = document.getElementById('fcTime');
+  if (!tEl || !blocks.length) return;
+
+  const s  = Math.max(0, Math.floor(Date.now() / 1000) - blocks[0].timestamp);
+  const mm = String(Math.floor(s / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  tEl.innerHTML = `${mm}<span class="fc-colon">:</span>${ss}`;
+
+  const p = (1 - Math.exp(-s / 600)) * 100;
+  const color = p < 35 ? 'var(--teal)' : p < 65 ? 'var(--amber)' : 'var(--red)';
+
+  const val  = document.getElementById('fcProbVal');
+  const fill = document.getElementById('fcProbFill');
+  if (val)  { val.textContent = `${p.toFixed(0)}%`; val.style.color = color; }
+  if (fill) { fill.style.width = `${p.toFixed(1)}%`; fill.style.background = color; fill.style.color = color; }
+}
+
+setInterval(updateForgeClock, 1000);
 
 function buildPendingCard() {
   const d = document.createElement('div');
@@ -1327,12 +1446,14 @@ function buildPendingCard() {
   const fillPct = mempoolStats ? Math.min(100, mempoolStats.vsize / 1e6 * 100).toFixed(0) : 0;
 
   d.innerHTML = `
+    <svg class="forge-border" aria-hidden="true"><rect/></svg>
+    <div class="forge-ring"></div>
     <div class="forge-core"></div>
     <div class="block-top">
-      <div class="block-height">#${typeof nextH === 'number' ? nextH.toLocaleString() : nextH}</div>
+      <div class="block-height">#${nextH}</div>
       <div class="block-locks" title="Not yet mined">${LOCK_SVG(true)}</div>
     </div>
-    <div><span class="tier-tag forging">⛏ Forging</span><span class="tier-confs">0 conf</span></div>
+    <div><span class="tier-confs" style="margin-left:0">0 conf</span></div>
     <div class="scramble-hash" id="scrHash">00000000…</div>
     <div class="nonce-line"><span class="nl">nonce search</span><span class="nv" id="scrNonce">—</span></div>
     <div class="forge-gauge">
@@ -1367,7 +1488,7 @@ function buildBlockCard(blk, isNew, depth) {
   d.innerHTML = `
     ${tier === 3 ? SHIELD_SVG : ''}
     <div class="block-top">
-      <div class="block-height">#${blk.height.toLocaleString()}</div>
+      <div class="block-height">#${blk.height}</div>
       <div class="block-locks" title="${confs} confirmation${confs > 1 ? 's' : ''}">${locks}</div>
     </div>
     <div><span class="tier-tag">${t.label}</span><span class="tier-confs">${confs} conf${confs > 1 ? 's' : ''}</span></div>
@@ -1580,7 +1701,7 @@ async function openBlockDetail(blk, cardEl) {
   document.getElementById('mempoolView').style.display      = 'none';
   document.getElementById('blockDetailView').style.display  = 'flex';
   document.getElementById('backBtn').style.display          = 'block';
-  document.getElementById('rightBarTitle').textContent      = `Block #${blk.height.toLocaleString()}`;
+  document.getElementById('rightBarTitle').textContent      = `Block #${blk.height}`;
   document.getElementById('rightDot').style.background      = 'var(--cyan)';
 
   // Show loading states
@@ -1622,7 +1743,7 @@ function renderDetailInfo(blk) {
     `<div class="detail-section-label">${label}</div>`;
 
   document.getElementById('detailInfo').innerHTML = `
-    <div class="detail-height">#${blk.height.toLocaleString()}</div>
+    <div class="detail-height">#${blk.height}</div>
     <div class="detail-miner">${miner !== '—' ? miner : ''}</div>
 
     <div class="detail-hash-box">
@@ -1734,7 +1855,7 @@ function showTip(e, blk) {
   const avgFeeRate = blk.extras?.avgFeeRate;
 
   tip.innerHTML = `
-    <div class="tip-h">#${blk.height.toLocaleString()}</div>
+    <div class="tip-h">#${blk.height}</div>
     <div class="tip-hash">${blk.id}</div>
     <div class="tip-row"><span class="tip-k">Time</span><span class="tip-v">${new Date(blk.timestamp * 1000).toLocaleString()}</span></div>
     <div class="tip-row"><span class="tip-k">Transactions</span><span class="tip-v">${blk.tx_count.toLocaleString()}</span></div>
@@ -1827,13 +1948,14 @@ async function refresh(isFirst = false) {
     recentTxs    = txs;
 
     renderChain();
+    updateForgeClock();
     if (viewMode === 'mempool' && pendingCard) pendingCard.classList.add('selected');
     updateHeader();
     renderHistogram();
     renderTxList(isFirst);
 
     if (prevH !== null && blocks[0].height > prevH) {
-      status.textContent = `⛏ New block #${blocks[0].height.toLocaleString()} confirmed — ${timeAgo(blocks[0].timestamp)} ago`;
+      status.textContent = `⛏ New block #${blocks[0].height} confirmed — ${timeAgo(blocks[0].timestamp)} ago`;
     } else {
       status.textContent = `Updated ${new Date().toLocaleTimeString()}`;
     }
