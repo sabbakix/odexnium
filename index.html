@@ -41,7 +41,10 @@
       color: var(--text);
       font-family: 'Rajdhani', 'Segoe UI', sans-serif;
       font-size: 15px;
-      height: 100vh;
+      /* 20% UI zoom — height compensated so the layout still fills
+         exactly one viewport with no scrolling */
+      zoom: 1.2;
+      height: calc(100vh / 1.2);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -411,12 +414,11 @@
 
     .block-hash {
       font-family: 'Share Tech Mono', monospace;
-      font-size: 10px;
+      font-size: 9px;
+      line-height: 1.5;
       color: var(--muted);
       margin-top: 3px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      word-break: break-all;
       opacity: .8;
     }
 
@@ -1380,8 +1382,6 @@ let knownTxIds    = new Set();
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-const trunc = (h, n = 14) => h ? `${h.slice(0, n)}…` : '—';
-
 const timeAgo = ts => {
   const s = Math.floor(Date.now() / 1000) - ts;
   if (s < 5)    return 'now';
@@ -1573,7 +1573,7 @@ function buildBlockCard(blk, isNew, depth) {
     </div>
     <div><span class="tier-tag">${t.label}</span><span class="tier-confs">${confs} conf${confs > 1 ? 's' : ''}</span></div>
     <div class="block-badge">${miner || '&nbsp;'}</div>
-    <div class="block-hash" title="${blk.id}">${trunc(blk.id, 18)}</div>
+    <div class="block-hash">${blk.id}</div>
     <div class="block-meta">
       <div class="meta-row"><span class="meta-label">txs</span><span class="meta-val">${blk.tx_count.toLocaleString()}</span></div>
       <div class="meta-row"><span class="meta-label">size</span><span class="meta-val">${sizeStr}</span></div>
@@ -1934,9 +1934,9 @@ function renderDetailInfo(blk) {
 
     ${section('Hashes')}
     ${field('Merkle root',
-      `<span style="font-size:9px;color:var(--muted)">${trunc(blk.merkle_root, 22)}</span>`)}
+      `<span style="font-size:9px;color:var(--muted)">${blk.merkle_root}</span>`)}
     ${field('Prev block',
-      `<span style="font-size:9px;color:var(--muted)">${trunc(blk.previousblockhash || 'genesis', 22)}</span>`)}
+      `<span style="font-size:9px;color:var(--muted)">${blk.previousblockhash || 'genesis'}</span>`)}
 
     ${section('Verify Block Hash')}
     <p class="verify-note">
