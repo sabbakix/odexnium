@@ -1,0 +1,56 @@
+
+## **Master Plan: CoinMarketCap Selenium Scraper**
+
+### **Phase 1: Setup & Dependencies**
+- • Install required packages: `selenium`, `webdriver-manager`, `requests`, `beautifulsoup4`
+- • Set up Chrome WebDriver with automatic management
+- • Create virtual environment and requirements.txt
+
+### **Phase 2: Core Scraping Logic**
+- • Navigate to `https://coinmarketcap.com/` using Selenium
+- • Extract top 100 coins data from the main page
+- • Filter out stablecoins using tag detection (USDT, USDC, BUSD, etc.)
+- • Collect coin profile URLs and basic information
+
+### **Phase 3: Individual Coin Processing**
+- • Loop through each non-stablecoin coin
+- • Navigate to individual coin detail pages using Selenium
+- • Locate and interact with the price chart component
+- • Set maximum timeframe (MAX/ALL) and enable log scale
+- • Wait for chart to render completely
+
+### **Phase 4: SVG Extraction & Processing**
+- • Extract SVG chart data from the rendered page
+- • Handle dynamic content loading with explicit waits
+- • Capture chart in maximum timeframe with log scale.
+    - To select maximun timeframe you need to click on the <li> element with attribute data-index="tab-4" witch has <h5> with text "All"
+    - Then to select the log scale you need to click on the <li> element with attribute data-index="tab-5" witch has <h5> with text "LOG"
+
+- • Store SVG content with coin metadata
+
+### **Phase 5: HTML Table Generation**
+- • Create HTML table structure with responsive design
+- • Embed SVG charts directly into table cells
+- • Include coin names, ranks, and other relevant data
+- • Add CSS styling for better presentation
+
+### **Phase 6: Error Handling & Optimization**
+- • Implement retry mechanisms for failed requests
+- • Add rate limiting to avoid being blocked
+- • Handle network timeouts and page load issues
+- • Add progress tracking and logging
+
+### **Phase 7: Output & Storage**
+- • Generate final HTML file with embedded charts
+- • Save coin data to JSON for future reference
+- • Create backup of raw SVG files
+- • Implement data validation and quality checks
+
+### **Key Technical Considerations:**
+- • Use `webdriver-manager` for automatic ChromeDriver management
+- • Implement explicit waits for dynamic content
+- • Handle anti-bot measures with realistic delays
+- • Use headless mode option for server deployment
+- • Implement proper exception handling for robust operation
+
+This plan builds upon your existing work while adding the Selenium functionality you requested for more advanced chart interaction and visualization.
