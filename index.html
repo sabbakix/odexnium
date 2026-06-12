@@ -186,6 +186,140 @@
     .pill-value.orange { color: var(--orange); text-shadow: 0 0 12px rgba(255,163,26,.5); }
     .pill-value.green  { color: var(--green);  text-shadow: 0 0 12px rgba(61,255,166,.4); }
 
+    /* ── Main nav ── */
+    .main-nav { display: flex; gap: 8px; }
+    .nav-btn {
+      background: rgba(22,32,60,.8);
+      border: 1px solid var(--line2);
+      clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+      padding: 8px 22px;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color .15s, background .15s, box-shadow .15s, border-color .15s;
+    }
+    .nav-btn:hover {
+      color: var(--cyan);
+      background: rgba(56,217,255,.10);
+      box-shadow: 0 0 14px rgba(56,217,255,.25);
+    }
+    .nav-btn.active {
+      color: var(--orange);
+      border-color: rgba(255,163,26,.55);
+      background: rgba(255,163,26,.10);
+      box-shadow: 0 0 14px rgba(255,163,26,.25);
+      text-shadow: 0 0 10px rgba(255,163,26,.4);
+    }
+
+    /* ── Alt views (Difficulty / About) ── */
+    .alt-view {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      position: relative;
+      z-index: 2;
+    }
+    .alt-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 26px 24px;
+      display: flex;
+      justify-content: center;
+      scrollbar-width: thin;
+      scrollbar-color: var(--line2) transparent;
+    }
+    .alt-card {
+      width: 100%;
+      max-width: 680px;
+      height: fit-content;
+      background: var(--panel);
+      border: 1px solid var(--line2);
+      border-radius: 4px;
+      padding: 22px 26px 24px;
+      backdrop-filter: blur(4px);
+    }
+    .alt-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--orange);
+      text-shadow: 0 0 18px rgba(255,163,26,.4);
+      margin-bottom: 4px;
+    }
+
+    .scale-btn {
+      background: rgba(22,32,60,.8);
+      border: 1px solid var(--line2);
+      clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
+      padding: 3px 14px;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color .15s, background .15s, border-color .15s;
+    }
+    .scale-btn:hover { color: var(--cyan); background: rgba(56,217,255,.08); }
+    .scale-btn.active {
+      color: var(--orange);
+      border-color: rgba(255,163,26,.5);
+      background: rgba(255,163,26,.08);
+    }
+
+    /* ── Markets view ── */
+    .mkt-head, .mkt-row {
+      display: grid;
+      grid-template-columns: 30px minmax(150px, 1.1fr) 95px 62px 105px 105px minmax(190px, 1.5fr);
+      gap: 10px;
+      align-items: center;
+      padding: 5px 8px;
+    }
+    .mkt-head {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line2);
+      margin-top: 10px;
+    }
+    .mkt-row {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      border-bottom: 1px solid rgba(86,120,190,.08);
+    }
+    .mkt-row:hover { background: rgba(56,217,255,.04); }
+    .mkt-ico  { width: 18px; height: 18px; border-radius: 50%; flex: none; }
+    .mkt-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .mkt-name .sym { font-weight: 700; color: var(--text); }
+    .mkt-name .nm  {
+      color: var(--muted);
+      font-size: 10px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .mkt-spark { width: 100%; height: 46px; display: block; cursor: crosshair; }
+
+    /* Difficulty chart fullscreen mode */
+    #diffChartWrap:fullscreen {
+      background: var(--bg1);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 28px;
+      box-sizing: border-box;
+    }
+    #diffChartWrap:fullscreen #diffChart { flex: 1; height: auto; min-height: 0; }
+
     /* ════════════════════════════════════════════════════════════════
        SECTION BARS
        ════════════════════════════════════════════════════════════════ */
@@ -710,31 +844,33 @@
       transform: translateX(4px);
     }
 
-    /* triangle on the selected card pointing at the detail panel —
-       the displayed data refers to this block */
+    /* triangle beside the selected card (outside, right edge) pointing left
+       at the block — the displayed data refers to this block. Lives in
+       .card-wrap because the card itself clips with overflow: hidden. */
+    .card-wrap { position: relative; flex-shrink: 0; width: 220px; }
     .sel-arrow {
       position: absolute;
-      right: 3px; top: 50%;
+      right: -16px; top: 50%;
       width: 0; height: 0;
       border-top: 7px solid transparent;
       border-bottom: 7px solid transparent;
-      border-left: 9px solid var(--cyan);
+      border-right: 9px solid var(--cyan);
       filter: drop-shadow(0 0 6px rgba(56,217,255,.8));
       opacity: 0;
-      transform: translateY(-50%) translateX(-4px);
+      transform: translateY(-50%) translateX(4px);
       transition: opacity .2s, transform .2s;
       pointer-events: none;
     }
-    .block-card.selected .sel-arrow {
+    .block-card.selected + .sel-arrow {
       opacity: 1;
       animation: arrowNudge 1.2s ease-in-out infinite;
     }
     @keyframes arrowNudge {
       0%, 100% { transform: translateY(-50%) translateX(0); }
-      50%      { transform: translateY(-50%) translateX(3px); }
+      50%      { transform: translateY(-50%) translateX(-3px); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .block-card.selected .sel-arrow {
+      .block-card.selected + .sel-arrow {
         animation: none;
         transform: translateY(-50%) translateX(0);
       }
@@ -1276,6 +1412,12 @@
       <span class="logo-sub">Blockchain Services</span>
     </div>
   </div>
+  <nav class="main-nav" id="mainNav">
+    <button class="nav-btn active" data-view="blocks">Block Info</button>
+    <button class="nav-btn" data-view="difficulty">Difficulty</button>
+    <button class="nav-btn" data-view="about">About</button>
+    <button class="nav-btn" data-view="markets">Markets</button>
+  </nav>
   <div class="header-pills" id="headerPills">
     <div class="pill">
       <span class="pill-label">Height</span>
@@ -1300,7 +1442,7 @@
   </div>
 </header>
 
-<div class="content-row">
+<div class="content-row" id="viewBlocks">
 
 <!-- ══ Blockchain column ══════════════════════════════════════════════ -->
 <div class="chain-col">
@@ -1397,6 +1539,94 @@
 </main>
 
 </div><!-- /.content-row -->
+
+<!-- ══ Difficulty view ═════════════════════════════════════════════ -->
+<div class="alt-view" id="viewDifficulty" style="display:none">
+  <div class="section-bar">
+    <div class="dot"></div>
+    Difficulty // Epoch &amp; Retarget
+  </div>
+  <div class="alt-scroll">
+    <div class="alt-card" id="diffContent">
+      <div class="loading-state"><div class="spin"></div> Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ About view ══════════════════════════════════════════════════ -->
+<div class="alt-view" id="viewAbout" style="display:none">
+  <div class="section-bar">
+    <div class="dot"></div>
+    About // Odexnium
+  </div>
+  <div class="alt-scroll">
+    <div class="alt-card">
+      <div class="alt-title">Odexnium</div>
+      <p class="verify-note">
+        A real-time Bitcoin network dashboard: live blockchain, mempool, fees,
+        mining economics and block verification in a single page.
+      </p>
+
+      <div class="detail-section-label">Data</div>
+      <p class="verify-note">
+        All chain and market data comes from the public
+        <code>mempool.space</code> REST API and refreshes every 30 seconds —
+        blocks, mempool composition, fee estimates, pool stats and the BTC/USD price.
+        Nothing is stored server-side; this page is a single static HTML file.
+      </p>
+
+      <div class="detail-section-label">Security tiers</div>
+      <p class="verify-note">
+        Blocks crystallize as they sink into the chain: <code>Forged</code> (just mined)
+        → <code>Cooling</code> → <code>Hardened</code> → <code>Immutable</code> (9+
+        confirmations), reflecting how reorganization risk drops with depth.
+      </p>
+
+      <div class="detail-section-label">Energy &amp; profitability model</div>
+      <p class="verify-note">
+        Finding a block at difficulty <code>D</code> takes on average
+        <code>D × 2³²</code> hashes. Energy is estimated at a network-average
+        fleet efficiency of <code>25 J/TH</code>, priced at a median industrial
+        mining rate of <code>$0.05/kWh</code>, and compared against the coinbase
+        reward (subsidy + fees) at the live BTC price. Electricity only — hardware,
+        hosting and staff are not modeled.
+      </p>
+
+      <div class="detail-section-label">Miner attribution</div>
+      <p class="verify-note">
+        Pools are identified from coinbase signatures by mempool.space. HQ and
+        facility locations come from a hand-kept registry and are approximate —
+        pooled hashrate aggregates member facilities worldwide.
+      </p>
+
+      <div class="detail-section-label">Verification</div>
+      <p class="verify-note">
+        Every block detail view rebuilds the raw 80-byte header and checks
+        <code>SHA256(SHA256(header))</code> against the block hash in your browser
+        via the Web Crypto API. You can also download the header and verify it yourself.
+      </p>
+
+      <div class="detail-section-label">Disclaimer</div>
+      <p class="verify-note">
+        Energy, cost and profitability figures are rough educational estimates,
+        not financial advice or audited data.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Markets view ════════════════════════════════════════════════ -->
+<div class="alt-view" id="viewMarkets" style="display:none">
+  <div class="section-bar">
+    <div class="dot"></div>
+    Markets // Top 100 by Market Cap
+  </div>
+  <div class="alt-scroll">
+    <div class="alt-card" id="marketsContent" style="max-width:1060px">
+      <div class="loading-state"><div class="spin"></div> Loading…</div>
+    </div>
+  </div>
+</div>
 
 <!-- ══ Footer ══════════════════════════════════════════════════════ -->
 <footer>
@@ -1642,7 +1872,6 @@ function buildPendingCard() {
     <svg class="forge-border" aria-hidden="true"><rect/></svg>
     <div class="forge-ring"></div>
     <div class="forge-core"></div>
-    <div class="sel-arrow"></div>
     <div class="block-top">
       <div class="block-height">#${nextH}</div>
       <div class="block-locks" title="Not yet mined">${LOCK_SVG(true)}</div>
@@ -1661,7 +1890,18 @@ function buildPendingCard() {
     </div>`;
   d.addEventListener('click', openMempoolDetail);
   pendingCard = d;
-  return d;
+  return wrapCard(d);
+}
+
+// Wraps a card so the selection arrow can sit outside its overflow:hidden box
+function wrapCard(card) {
+  const wrap = document.createElement('div');
+  wrap.className = 'card-wrap';
+  wrap.appendChild(card);
+  const arrow = document.createElement('div');
+  arrow.className = 'sel-arrow';
+  wrap.appendChild(arrow);
+  return wrap;
 }
 
 function buildBlockCard(blk, isNew, depth) {
@@ -1684,7 +1924,6 @@ function buildBlockCard(blk, isNew, depth) {
 
   d.innerHTML = `
     ${tier === 3 ? SHIELD_SVG : ''}
-    <div class="sel-arrow"></div>
     <div class="block-top">
       <div class="block-height">#${blk.height}</div>
       <div class="block-locks" title="${confs} confirmation${confs > 1 ? 's' : ''}">${locks}</div>
@@ -1712,7 +1951,7 @@ function buildBlockCard(blk, isNew, depth) {
   }
 
   d.addEventListener('click', () => openBlockDetail(blk, d));
-  return d;
+  return wrapCard(d);
 }
 
 function buildConnector(tier) {
@@ -2183,6 +2422,647 @@ function renderDetailTxs(txs) {
     d.addEventListener('click', () => selectTx(tx.txid, d, 'txDetailBlock'));
     list.appendChild(d);
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main nav — Block Info / Difficulty / About
+// ─────────────────────────────────────────────────────────────────────────────
+const fmtDur = ms => {
+  const m = Math.round(ms / 60000);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h ${m % 60}m`;
+  return `${Math.floor(h / 24)}d ${h % 24}h`;
+};
+
+function switchView(name) {
+  document.getElementById('viewBlocks').style.display     = name === 'blocks'     ? 'flex' : 'none';
+  document.getElementById('viewDifficulty').style.display = name === 'difficulty' ? 'flex' : 'none';
+  document.getElementById('viewAbout').style.display      = name === 'about'      ? 'flex' : 'none';
+  document.getElementById('viewMarkets').style.display    = name === 'markets'    ? 'flex' : 'none';
+  document.querySelectorAll('.nav-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.view === name));
+  if (name === 'difficulty') loadDifficulty();
+  if (name === 'markets')    loadMarkets();
+}
+
+document.querySelectorAll('.nav-btn').forEach(b =>
+  b.addEventListener('click', () => switchView(b.dataset.view)));
+
+let diffHistory  = null; // cached [[timestamp, height, difficulty, changeRatio], …] ascending
+let priceHistory = null; // cached [{time, USD}, …] ascending
+let diffScale    = 'log';
+let diffView     = null; // zoomed time window {t0, t1}; null = full history
+
+const fmtSI = v =>
+  v >= 1e18 ? `${(v / 1e18).toFixed(1)} E` :
+  v >= 1e15 ? `${(v / 1e15).toFixed(1)} P` :
+  v >= 1e12 ? `${(v / 1e12).toFixed(1)} T` :
+  v >= 1e9  ? `${(v / 1e9 ).toFixed(1)} G` :
+  v >= 1e6  ? `${(v / 1e6 ).toFixed(1)} M` :
+  v >= 1e3  ? `${(v / 1e3 ).toFixed(1)} k` :
+              v.toFixed(v >= 10 ? 0 : 2);
+
+async function loadDifficulty() {
+  const el = document.getElementById('diffContent');
+  el.innerHTML = '<div class="loading-state"><div class="spin"></div> Loading…</div>';
+  const [daRes, histRes, priceRes] = await Promise.allSettled([
+    get(`${API}/v1/difficulty-adjustment`),
+    diffHistory ? Promise.resolve(diffHistory)
+                : get(`${API}/v1/mining/difficulty-adjustments`),
+    priceHistory ? Promise.resolve({ prices: priceHistory })
+                 : get(`${API}/v1/historical-price?currency=USD`),
+  ]);
+  if (histRes.status === 'fulfilled' && Array.isArray(histRes.value)) {
+    diffHistory = histRes.value.slice().sort((a, b) => a[0] - b[0]);
+  }
+  if (priceRes.status === 'fulfilled' && Array.isArray(priceRes.value?.prices)) {
+    priceHistory = priceRes.value.prices.slice().sort((a, b) => a.time - b.time);
+  }
+  if (daRes.status === 'fulfilled') renderDifficulty(daRes.value);
+  else el.innerHTML = '<div class="loading-state" style="color:var(--red)">Failed to load difficulty data</div>';
+}
+
+function renderDifficulty(da) {
+  const field = (k, v, cls = '') =>
+    `<div class="detail-field"><span class="dk">${k}</span><span class="dv ${cls}">${v}</span></div>`;
+  const section = label => `<div class="detail-section-label">${label}</div>`;
+
+  const diff    = blocks[0]?.difficulty;
+  // Network hashrate implied by difficulty: D × 2³² hashes per 600 s
+  const hashps  = diff ? diff * 2 ** 32 / 600 : null;
+  const powerGW = hashps ? (hashps / 1e12) * FLEET_J_PER_TH / 1e9 : null;
+
+  const chCls  = da.difficultyChange >= 0 ? 'green' : 'red';
+  const chSign = da.difficultyChange >= 0 ? '+' : '';
+  const pvCls  = da.previousRetarget  >= 0 ? 'green' : 'red';
+  const pvSign = da.previousRetarget  >= 0 ? '+' : '';
+
+  document.getElementById('diffContent').innerHTML = `
+    <div class="alt-title">Difficulty Epoch</div>
+
+    ${section('Current network')}
+    ${diff ? field('Difficulty', Number(diff).toExponential(3), 'orange') : ''}
+    ${diff ? field('Exact', Math.round(diff).toLocaleString()) : ''}
+    ${hashps  != null ? field('Implied hashrate', fmtHashrate(hashps), 'orange') : ''}
+    ${powerGW != null ? field('Est. power draw', `${powerGW.toFixed(1)} GW @ ${FLEET_J_PER_TH} J/TH`) : ''}
+
+    ${section('Epoch progress')}
+    <div class="fg-track" style="margin:8px 0 10px"><div class="fg-fill" style="width:${da.progressPercent.toFixed(1)}%"></div></div>
+    ${field('Progress', `${da.progressPercent.toFixed(2)}%`)}
+    ${field('Expected blocks so far', Math.round(da.expectedBlocks).toLocaleString())}
+    ${field('Remaining blocks', da.remainingBlocks.toLocaleString())}
+    ${field('Avg block time', fmtDur(da.timeAvg))}
+
+    ${section('Next retarget')}
+    ${field('Estimated change', `${chSign}${da.difficultyChange.toFixed(2)}%`, chCls)}
+    ${field('Retarget height', da.nextRetargetHeight.toLocaleString())}
+    ${field('Estimated date', new Date(da.estimatedRetargetDate).toLocaleString())}
+    ${field('Time remaining', fmtDur(da.remainingTime))}
+    ${field('Previous retarget', `${pvSign}${da.previousRetarget.toFixed(2)}%`, pvCls)}
+
+    ${diffHistory?.length ? `
+    ${section('Historic difficulty — 2009 → today')}
+    <div id="diffChartWrap">
+    <div style="display:flex;align-items:center;gap:14px;margin:6px 0 8px">
+      <span style="font-size:9px;font-weight:700;letter-spacing:1.2px;color:var(--orange)">━ DIFFICULTY</span>
+      ${priceHistory?.length ? '<span style="font-size:9px;font-weight:700;letter-spacing:1.2px;color:var(--cyan)">━ BTC PRICE (USD)</span>' : ''}
+      <span style="flex:1"></span>
+      <button class="scale-btn${diffScale === 'log' ? ' active' : ''}" data-scale="log">Log</button>
+      <button class="scale-btn${diffScale === 'lin' ? ' active' : ''}" data-scale="lin">Linear</button>
+      <button class="scale-btn" id="diffFsBtn" title="Toggle fullscreen">⛶ Full</button>
+    </div>
+    <canvas id="diffChart" style="width:100%;height:240px;display:block;cursor:crosshair"></canvas>
+    <div id="diffChartHint" style="font-size:10px;color:var(--muted);margin-top:5px;font-family:'Share Tech Mono',monospace">Hover to inspect · scroll to zoom · drag to pan · double-click to reset</div>
+    </div>` : ''}
+
+    <p class="verify-note" style="margin-top:14px">
+      Bitcoin retargets difficulty every 2,016 blocks (~2 weeks) so blocks keep
+      averaging 10 minutes: if the epoch ran fast, difficulty rises; if slow, it
+      falls. Higher difficulty means more expected hashes — and more energy —
+      per block.
+    </p>`;
+
+  wireDiffChart();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Historic difficulty chart — canvas, no library
+// ─────────────────────────────────────────────────────────────────────────────
+function wireDiffChart() {
+  const canvas = document.getElementById('diffChart');
+  if (!canvas) return;
+  // Map mouse positions into the canvas drawing space via the bounding
+  // rect — e.offsetX/Y disagree with clientWidth under the page-level zoom.
+  const canvasXY = e => {
+    const r = canvas.getBoundingClientRect();
+    return [(e.clientX - r.left) / r.width  * canvas.clientWidth,
+            (e.clientY - r.top)  / r.height * canvas.clientHeight];
+  };
+  let dragLastX = null;
+  canvas.addEventListener('mousemove', e => {
+    const [x, y] = canvasXY(e);
+    if (dragLastX != null) { panDiffChart(x - dragLastX); dragLastX = x; }
+    drawDiffChart(x, y);
+  });
+  canvas.addEventListener('mousedown', e => { e.preventDefault(); dragLastX = canvasXY(e)[0]; });
+  window.addEventListener('mouseup', () => { dragLastX = null; });
+  canvas.addEventListener('mouseleave', () => { dragLastX = null; drawDiffChart(); });
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const [x, y] = canvasXY(e);
+    zoomDiffChart(x, e.deltaY < 0 ? 0.75 : 1 / 0.75, y);
+  }, { passive: false });
+  canvas.addEventListener('dblclick', () => { diffView = null; drawDiffChart(); });
+  const fsBtn = document.getElementById('diffFsBtn');
+  const wrap  = document.getElementById('diffChartWrap');
+  if (fsBtn && wrap) {
+    fsBtn.addEventListener('click', () => {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else wrap.requestFullscreen();
+    });
+    wrap.addEventListener('fullscreenchange', () => {
+      fsBtn.textContent = document.fullscreenElement ? '✕ Exit' : '⛶ Full';
+      requestAnimationFrame(() => drawDiffChart()); // redraw at the new size
+    });
+  }
+  document.querySelectorAll('.scale-btn[data-scale]').forEach(b =>
+    b.addEventListener('click', () => {
+      diffScale = b.dataset.scale;
+      document.querySelectorAll('.scale-btn[data-scale]').forEach(x =>
+        x.classList.toggle('active', x === b));
+      drawDiffChart();
+    }));
+  drawDiffChart();
+}
+
+// Visible time window, clamped to the data extent
+function diffChartRange() {
+  const pts = diffHistory;
+  const f0 = pts[0][0], f1 = pts[pts.length - 1][0];
+  if (!diffView) return { f0, f1, t0: f0, t1: f1 };
+  return { f0, f1, t0: Math.max(f0, diffView.t0), t1: Math.min(f1, diffView.t1) };
+}
+
+function diffPlotGeom(canvas) {
+  const padL = 46, padR = priceHistory?.length ? 48 : 8;
+  return { padL, padR, plotW: canvas.clientWidth - padL - padR };
+}
+
+function zoomDiffChart(px, factor, py = null) {
+  const canvas = document.getElementById('diffChart');
+  if (!canvas || !diffHistory?.length) return;
+  const { f0, f1, t0, t1 } = diffChartRange();
+  const { padL, plotW } = diffPlotGeom(canvas);
+  const frac = Math.min(1, Math.max(0, (px - padL) / plotW));
+  const tAt  = t0 + frac * (t1 - t0);     // keep this instant under the cursor
+  const span = Math.max(60 * 86400, Math.min(f1 - f0, (t1 - t0) * factor));
+  let n0 = tAt - frac * span, n1 = n0 + span;
+  if (n0 < f0) { n1 += f0 - n0; n0 = f0; }
+  if (n1 > f1) { n0 = Math.max(f0, n0 - (n1 - f1)); n1 = f1; }
+  diffView = (n0 <= f0 && n1 >= f1) ? null : { t0: n0, t1: n1 };
+  drawDiffChart(px, py);
+}
+
+function panDiffChart(dxPx) {
+  const canvas = document.getElementById('diffChart');
+  if (!canvas || !diffView || !diffHistory?.length) return;
+  const { f0, f1, t0, t1 } = diffChartRange();
+  const { plotW } = diffPlotGeom(canvas);
+  const dt = Math.max(f0 - t0, Math.min(f1 - t1, -dxPx * (t1 - t0) / plotW));
+  diffView = { t0: t0 + dt, t1: t1 + dt };
+}
+
+function drawDiffChart(hoverX = null, hoverY = null) {
+  const canvas = document.getElementById('diffChart');
+  if (!canvas || !diffHistory?.length) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = canvas.clientHeight || 240;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const pts  = diffHistory;
+  const padL = 46, padR = priceHistory?.length ? 48 : 8, padT = 8, padB = 20;
+  const { t0, t1 } = diffChartRange();
+  const vis  = pts.filter(p => p[0] >= t0 && p[0] <= t1);
+  const yPts = vis.length ? vis : pts;   // y axis auto-scales to the window
+  const log  = diffScale === 'log';
+  const yv   = v => log ? Math.log10(Math.max(v, 1)) : v;
+  const yTop = yv(Math.max(...yPts.map(p => p[2]))) * (log ? 1.05 : 1.08);
+  const X = t => padL + (t - t0) / (t1 - t0) * (W - padL - padR);
+  const Y = v => H - padB - (yTop ? yv(v) / yTop : 0) * (H - padT - padB);
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.font = '9px "Share Tech Mono", monospace';
+  ctx.fillStyle = 'rgba(102,120,159,.95)';
+  ctx.strokeStyle = 'rgba(86,120,190,.15)';
+  ctx.lineWidth = 1;
+
+  // y grid — decades in log mode, quarters in linear
+  const yTicks = log
+    ? [1, 1e3, 1e6, 1e9, 1e12, 1e15].filter(v => yv(v) <= yTop)
+    : [1, 2, 3, 4].map(i => yTop * i / 4);
+  for (const v of yTicks) {
+    const y = Y(v);
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    ctx.fillText(fmtSI(v), 2, y + 3);
+  }
+
+  // x grid — tick density adapts to the zoom window: 2-year / yearly / monthly
+  const spanYears = (t1 - t0) / 31557600;
+  if (spanYears >= 1.5) {
+    const step = spanYears > 6 ? 2 : 1;
+    const startYear = new Date(t0 * 1000).getUTCFullYear();
+    const endYear   = new Date(t1 * 1000).getUTCFullYear();
+    for (let yr = startYear; yr <= endYear; yr++) {
+      if (step === 2 && yr % 2) continue;
+      const t = Date.UTC(yr, 0, 1) / 1000;
+      if (t < t0 || t > t1) continue;
+      const x = X(t);
+      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, H - padB); ctx.stroke();
+      ctx.fillText(String(yr), x - 12, H - 7);
+    }
+  } else {
+    const stepM = spanYears > 0.6 ? 2 : 1;
+    const d0 = new Date(t0 * 1000);
+    const yr0 = d0.getUTCFullYear(), mo0 = d0.getUTCMonth();
+    for (let i = 0; i < 36; i++) {
+      const t = Date.UTC(yr0, mo0 + i, 1) / 1000;
+      if (t < t0) continue;
+      if (t > t1) break;
+      const d = new Date(t * 1000);
+      if (d.getUTCMonth() % stepM) continue;
+      const x = X(t);
+      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, H - padB); ctx.stroke();
+      const lbl = d.toLocaleString('en', { month: 'short', timeZone: 'UTC' })
+                + (d.getUTCMonth() === 0 ? ` ${d.getUTCFullYear()}` : '');
+      ctx.fillText(lbl, x - 10, H - 7);
+    }
+  }
+
+  // series are clipped to the plot area so zoomed views stay inside the axes
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(padL, padT, W - padL - padR, H - padT - padB);
+  ctx.clip();
+
+  // area fill under the curve
+  const grad = ctx.createLinearGradient(0, padT, 0, H - padB);
+  grad.addColorStop(0, 'rgba(255,163,26,.25)');
+  grad.addColorStop(1, 'rgba(255,163,26,0)');
+  ctx.beginPath();
+  ctx.moveTo(X(pts[0][0]), Y(pts[0][2]));
+  for (const p of pts) ctx.lineTo(X(p[0]), Y(p[2]));
+  ctx.lineTo(X(pts[pts.length - 1][0]), H - padB);
+  ctx.lineTo(X(pts[0][0]), H - padB);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // difficulty line
+  ctx.beginPath();
+  ctx.moveTo(X(pts[0][0]), Y(pts[0][2]));
+  for (const p of pts) ctx.lineTo(X(p[0]), Y(p[2]));
+  ctx.strokeStyle = '#ffa31a';
+  ctx.lineWidth = 1.6;
+  ctx.shadowColor = 'rgba(255,163,26,.6)';
+  ctx.shadowBlur = 6;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  // BTC price overlay — own scale, right-hand axis
+  let pp = null, Yp = null, priceAtY = null;
+  if (priceHistory?.length) {
+    pp = btcPrice != null
+      ? priceHistory.concat({ time: Math.floor(Date.now() / 1000), USD: btcPrice })
+      : priceHistory;
+    const pv   = v => log ? Math.log10(Math.max(v, 0.01)) : v;
+    const pVis = pp.filter(p => p.time >= t0 && p.time <= t1);
+    const pSrc = pVis.length ? pVis : pp;  // price axis follows the window too
+    const pMax = Math.max(...pSrc.map(p => p.USD));
+    const pBot = log ? pv(Math.max(0.05, Math.min(...pSrc.map(p => p.USD)))) : 0;
+    const pTop = log ? pv(pMax) + .25 : pMax * 1.08;
+    Yp = v => H - padB - (pv(v) - pBot) / (pTop - pBot) * (H - padT - padB);
+    priceAtY = y => {
+      const lv = pBot + (H - padB - y) / (H - padT - padB) * (pTop - pBot);
+      return log ? 10 ** lv : lv;
+    };
+
+    // right-axis price labels (no extra gridlines to keep it readable)
+    ctx.fillStyle = 'rgba(56,217,255,.85)';
+    let pTicks;
+    if (log) {
+      // whole decades, thinned so at most ~5 labels fit the visible range
+      const lo = Math.ceil(pBot), hi = Math.floor(pTop);
+      const step = Math.max(1, Math.ceil((hi - lo) / 4));
+      pTicks = [];
+      for (let d = lo; d <= hi; d += step) pTicks.push(10 ** d);
+    } else {
+      pTicks = [1, 2, 3, 4].map(i => pMax * i / 4);
+    }
+    for (const v of pTicks) ctx.fillText(`$${fmtSI(v).replace(' ', '')}`, W - padR + 5, Yp(v) + 3);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(padL, padT, W - padL - padR, H - padT - padB);
+    ctx.clip();
+    ctx.beginPath();
+    let started = false;
+    for (const p of pp) {
+      const x = X(p.time), y = Yp(p.USD);
+      if (started) ctx.lineTo(x, y); else { ctx.moveTo(x, y); started = true; }
+    }
+    ctx.strokeStyle = 'rgba(56,217,255,.5)'; // 50% transparent — difficulty stays the lead series
+    ctx.lineWidth = 1.3;
+    ctx.stroke(); // no glow/shadow — keeps the price line crisp
+    ctx.restore();
+  }
+
+  // hover crosshair + readout
+  const hint = document.getElementById('diffChartHint');
+  if (hoverX != null) {
+    const cand = vis.length ? vis : pts;
+    let best = 0, bd = Infinity;
+    cand.forEach((p, i) => {
+      const d = Math.abs(X(p[0]) - hoverX);
+      if (d < bd) { bd = d; best = i; }
+    });
+    const p = cand[best], px = X(p[0]), py = Y(p[2]);
+    ctx.strokeStyle = 'rgba(217,230,255,.35)';
+    ctx.beginPath(); ctx.moveTo(px, padT); ctx.lineTo(px, H - padB); ctx.stroke();
+
+    // horizontal crosshair at the cursor, with value readouts on both axes
+    if (hoverY != null && hoverY >= padT && hoverY <= H - padB) {
+      ctx.beginPath(); ctx.moveTo(padL, hoverY); ctx.lineTo(W - padR, hoverY); ctx.stroke();
+      const frac = (H - padB - hoverY) / (H - padT - padB);
+      const dv   = frac * yTop;
+      ctx.fillStyle = '#ffa31a';
+      ctx.fillText(fmtSI(log ? 10 ** dv : Math.max(dv, 0)), 2, hoverY - 3);
+      if (priceAtY) {
+        ctx.fillStyle = '#38d9ff';
+        ctx.fillText(`$${fmtSI(priceAtY(hoverY)).replace(' ', '')}`, W - padR + 5, hoverY - 3);
+      }
+    }
+
+    ctx.fillStyle = '#ffa31a';
+    ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
+
+    let priceTxt = '';
+    if (pp && Yp) {
+      let bp = null, bdp = Infinity;
+      for (const q of pp) {
+        const d = Math.abs(q.time - p[0]);
+        if (d < bdp) { bdp = d; bp = q; }
+      }
+      if (bp) {
+        ctx.fillStyle = '#38d9ff';
+        ctx.beginPath(); ctx.arc(px, Yp(bp.USD), 3, 0, Math.PI * 2); ctx.fill();
+        priceTxt = ` · BTC ${bp.USD < 10 ? '$' + bp.USD.toFixed(2) : '$' + Math.round(bp.USD).toLocaleString()}`;
+      }
+    }
+
+    if (hint) {
+      const chg = p[3] != null ? ` · retarget ${p[3] >= 1 ? '+' : ''}${((p[3] - 1) * 100).toFixed(2)}%` : '';
+      hint.textContent = `${new Date(p[0] * 1000).toLocaleDateString()} · height ${p[1].toLocaleString()} · difficulty ${fmtSI(p[2])}${chg}${priceTxt}`;
+    }
+  } else if (hint) {
+    hint.textContent = diffView
+      ? `${new Date(t0 * 1000).toLocaleDateString()} → ${new Date(t1 * 1000).toLocaleDateString()} · scroll to zoom · drag to pan · double-click to reset`
+      : 'Hover to inspect · scroll to zoom · drag to pan · double-click to reset';
+  }
+}
+
+window.addEventListener('resize', () => {
+  drawDiffChart();
+  document.querySelectorAll('.mkt-spark').forEach(cv => {
+    if (mktCharts.has(cv.dataset.id)) drawSpark(cv);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Markets — top 100 by market cap (CoinGecko) + 1-year sparkline per coin
+// ─────────────────────────────────────────────────────────────────────────────
+const COINGECKO  = 'https://api.coingecko.com/api/v3';
+let   mktCoins   = null;          // cached /coins/markets payload
+let   mktFetched = 0;
+const mktCharts  = new Map();     // coin id -> [[ms, price], …] (1y, daily)
+const mktPending = new Set();     // ids queued or fetching
+const mktTries   = new Map();     // id -> failed attempts
+const mktQueue   = [];
+let   mktWorking = false;
+let   mktFetchingId   = null; // id whose chart is downloading right now
+let   mktBackoffUntil = 0;    // timestamp until which we are rate-limited
+let   mktTicker       = null; // repaints placeholder countdowns
+
+async function loadMarkets() {
+  const el = document.getElementById('marketsContent');
+  if (mktCoins && Date.now() - mktFetched < 120000) { renderMarkets(); return; }
+  el.innerHTML = '<div class="loading-state"><div class="spin"></div> Loading markets…</div>';
+  try {
+    mktCoins = await get(`${COINGECKO}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=20&page=1&price_change_percentage=24h,1y`);
+    mktFetched = Date.now();
+  } catch (e) {
+    el.innerHTML = '<div class="loading-state" style="color:var(--red)">Failed to load market data — CoinGecko may be rate-limiting, try again in a minute</div>';
+    return;
+  }
+  renderMarkets();
+}
+
+function renderMarkets() {
+  const el = document.getElementById('marketsContent');
+  const fmtPrice = v => v == null ? '—'
+    : v >= 1000 ? '$' + Math.round(v).toLocaleString()
+    : v >= 1    ? '$' + v.toFixed(2)
+    :             '$' + v.toPrecision(3);
+  const fmtCap = v => v == null ? '—' : '$' + fmtSI(v).replace(' ', '');
+  const pct = v => v == null ? '<span style="color:var(--muted)">—</span>'
+    : `<span style="color:var(--${v >= 0 ? 'green' : 'red'})">${v >= 0 ? '+' : ''}${v.toFixed(1)}%</span>`;
+
+  el.innerHTML = `
+    <div class="alt-title">Top 20 Cryptocurrencies</div>
+    <div class="mkt-head">
+      <span>#</span><span>Coin</span><span>Price</span><span>24h</span>
+      <span>Market Cap</span><span>Volume 24h</span><span>5 Years</span>
+    </div>
+    <div>
+      ${mktCoins.map(c => `
+      <div class="mkt-row">
+        <span style="color:var(--muted)">${c.market_cap_rank ?? ''}</span>
+        <span class="mkt-name">
+          <img class="mkt-ico" src="${esc(c.image)}" alt="" loading="lazy">
+          <span class="sym">${esc((c.symbol || '').toUpperCase())}</span>
+          <span class="nm">${esc(c.name)}</span>
+        </span>
+        <span>${fmtPrice(c.current_price)}</span>
+        <span>${pct(c.price_change_percentage_24h_in_currency ?? c.price_change_percentage_24h)}</span>
+        <span style="color:var(--orange)">${fmtCap(c.market_cap)}</span>
+        <span>${fmtCap(c.total_volume)}</span>
+        <canvas class="mkt-spark" data-id="${esc(c.id)}"></canvas>
+      </div>`).join('')}
+    </div>
+    <p class="verify-note" style="margin-top:12px">
+      Market data: CoinGecko public API, refreshed on view change (2 min cache).
+      5-year charts (weekly granularity) load lazily as rows scroll into view to
+      respect the public rate limit — hover a chart for the crosshair readout.
+    </p>`;
+
+  // lazy-load each 1-year chart when its row scrolls into view
+  const io = new IntersectionObserver(entries => {
+    for (const en of entries) {
+      if (!en.isIntersecting) continue;
+      io.unobserve(en.target);
+      queueSpark(en.target.dataset.id);
+    }
+  }, { root: el.closest('.alt-scroll'), rootMargin: '150px' });
+
+  el.querySelectorAll('.mkt-spark').forEach(cv => {
+    wireSpark(cv);
+    if (mktCharts.has(cv.dataset.id)) drawSpark(cv);
+    else { drawSpark(cv); io.observe(cv); } // paints the "loading…" placeholder
+  });
+}
+
+function queueSpark(id) {
+  if (mktCharts.has(id) || mktPending.has(id)) return;
+  mktPending.add(id);
+  mktQueue.push(id);
+  runSparkQueue();
+  startMktTicker();
+}
+
+// While charts download, refresh the placeholder countdowns twice a second
+function startMktTicker() {
+  if (mktTicker) return;
+  mktTicker = setInterval(() => {
+    document.querySelectorAll('.mkt-spark').forEach(cv => {
+      if (!mktCharts.has(cv.dataset.id)) drawSpark(cv);
+    });
+    if (!mktWorking) { clearInterval(mktTicker); mktTicker = null; }
+  }, 500);
+}
+
+async function runSparkQueue() {
+  if (mktWorking) return;
+  mktWorking = true;
+  while (mktQueue.length) {
+    const id = mktQueue.shift();
+    mktFetchingId = id;
+    try {
+      const d = await get(`${COINGECKO}/coins/${encodeURIComponent(id)}/market_chart?vs_currency=usd&days=1825`);
+      // API returns daily points for long ranges — thin to weekly, keep the last
+      const prices = d.prices.filter((_, i) => i % 7 === 0);
+      if (prices[prices.length - 1] !== d.prices[d.prices.length - 1]) {
+        prices.push(d.prices[d.prices.length - 1]);
+      }
+      mktCharts.set(id, prices);
+      mktFetchingId = null;
+      document.querySelectorAll(`.mkt-spark[data-id="${CSS.escape(id)}"]`).forEach(cv => drawSpark(cv));
+      await new Promise(r => setTimeout(r, 3000)); // stay under the public rate limit
+    } catch (e) {
+      mktFetchingId = null;
+      const n = (mktTries.get(id) || 0) + 1;
+      mktTries.set(id, n);
+      if (n < 4) mktQueue.push(id); else mktPending.delete(id);
+      mktBackoffUntil = Date.now() + 45000;
+      await new Promise(r => setTimeout(r, 45000)); // rate-limited: back off
+    }
+  }
+  mktWorking = false;
+}
+
+function wireSpark(cv) {
+  // bounding-rect mapping — offsetX/Y disagree with clientWidth under page zoom
+  cv.addEventListener('mousemove', e => {
+    const r = cv.getBoundingClientRect();
+    drawSpark(cv,
+      (e.clientX - r.left) / r.width  * cv.clientWidth,
+      (e.clientY - r.top)  / r.height * cv.clientHeight);
+  });
+  cv.addEventListener('mouseleave', () => drawSpark(cv));
+}
+
+function drawSpark(cv, hoverX = null, hoverY = null) {
+  const data = mktCharts.get(cv.dataset.id);
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth || 200, H = cv.clientHeight || 46;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+  ctx.font = '9px "Share Tech Mono", monospace';
+
+  if (!data?.length) {
+    const id = cv.dataset.id;
+    let txt;
+    if (id === mktFetchingId) {
+      txt = 'fetching' + '.'.repeat(1 + Math.floor(Date.now() / 500) % 3);
+    } else {
+      const qi = mktQueue.indexOf(id);
+      if (qi >= 0) {
+        const backoff = Math.max(0, mktBackoffUntil - Date.now());
+        const eta = Math.ceil(qi * 3 + 3 + backoff / 1000);
+        txt = backoff > 0 ? `rate-limited · retry ~${eta}s` : `chart in ~${eta}s`;
+      } else {
+        txt = 'chart queues on scroll';
+      }
+    }
+    ctx.fillStyle = 'rgba(102,120,159,.55)';
+    ctx.fillText(txt, 4, H / 2 + 3);
+    return;
+  }
+
+  const t0 = data[0][0], t1 = data[data.length - 1][0];
+  let min = Infinity, max = -Infinity;
+  for (const [, v] of data) { if (v < min) min = v; if (v > max) max = v; }
+  if (min === max) { min *= 0.99; max *= 1.01; }
+  const X = t => (t - t0) / (t1 - t0) * (W - 2) + 1;
+  const Y = v => H - 3 - (v - min) / (max - min) * (H - 8);
+  const up  = data[data.length - 1][1] >= data[0][1];
+  const rgb = up ? '61,255,166' : '255,77,94'; // --green / --red
+
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, `rgba(${rgb},.22)`);
+  grad.addColorStop(1, `rgba(${rgb},0)`);
+  ctx.beginPath();
+  ctx.moveTo(X(t0), Y(data[0][1]));
+  for (const [t, v] of data) ctx.lineTo(X(t), Y(v));
+  ctx.lineTo(X(t1), H); ctx.lineTo(X(t0), H);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(X(t0), Y(data[0][1]));
+  for (const [t, v] of data) ctx.lineTo(X(t), Y(v));
+  ctx.strokeStyle = `rgb(${rgb})`;
+  ctx.lineWidth = 1.1;
+  ctx.stroke();
+
+  // crosshair + readout
+  if (hoverX != null) {
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < data.length; i++) {
+      const d = Math.abs(X(data[i][0]) - hoverX);
+      if (d < bd) { bd = d; best = i; }
+    }
+    const [t, v] = data[best], px = X(t), py = Y(v);
+    ctx.strokeStyle = 'rgba(217,230,255,.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+    if (hoverY != null && hoverY >= 0 && hoverY <= H) {
+      ctx.beginPath(); ctx.moveTo(0, hoverY); ctx.lineTo(W, hoverY); ctx.stroke();
+    }
+    ctx.fillStyle = `rgb(${rgb})`;
+    ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI * 2); ctx.fill();
+    const txt = `${new Date(t).toLocaleDateString()} · ${v >= 1000 ? '$' + Math.round(v).toLocaleString() : v >= 1 ? '$' + v.toFixed(2) : '$' + v.toPrecision(3)}`;
+    ctx.fillStyle = 'rgba(217,230,255,.9)';
+    ctx.textAlign = px > W / 2 ? 'right' : 'left';
+    ctx.fillText(txt, px > W / 2 ? px - 5 : px + 5, 9);
+    ctx.textAlign = 'left';
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
