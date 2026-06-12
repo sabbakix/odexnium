@@ -1089,6 +1089,7 @@
     .dv { color: var(--text); font-weight: 600; text-align: right; word-break: break-all; font-family: 'Share Tech Mono', monospace; font-size: 11px; }
     .dv.orange { color: var(--orange); }
     .dv.green  { color: var(--green); }
+    .dv.red    { color: var(--red); }
 
     /* header download / verify */
     .download-btn {
@@ -1247,6 +1248,10 @@
       <span class="pill-value orange" id="phHeight">—</span>
     </div>
     <div class="pill">
+      <span class="pill-label">BTC / USD</span>
+      <span class="pill-value" id="phPrice">—</span>
+    </div>
+    <div class="pill">
       <span class="pill-label">Mempool</span>
       <span class="pill-value" id="phMempool">—</span>
     </div>
@@ -1378,6 +1383,7 @@ let feeEstimates  = null;
 let recentTxs     = [];
 let prevTopHeight = null;
 let knownTxIds    = new Set();
+let btcPrice      = null; // BTC/USD from /v1/prices, refreshed each cycle
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -1404,6 +1410,77 @@ const fmtBTC = sats => {
 };
 
 const rateClass = r => r > 50 ? 'rate-hi' : r > 10 ? 'rate-mid' : 'rate-lo';
+
+// ── Mining energy economics ─────────────────────────────────────────────────
+// Expected number of hashes to find a block at difficulty D is D × 2^32.
+// FLEET_J_PER_TH: network-average ASIC efficiency in joules per terahash
+// (modern fleet mix ≈ 25 J/TH). MEDIAN_USD_PER_KWH: median electricity
+// price paid by industrial miners (≈ $0.05/kWh). Both are estimates —
+// tune them here as hardware and power markets move.
+const FLEET_J_PER_TH     = 25;
+const MEDIAN_USD_PER_KWH = 0.05;
+
+const blockEnergy = blk => {
+  if (!blk.difficulty) return null;
+  const hashes = blk.difficulty * 2 ** 32;           // expected hashes
+  const joules = (hashes / 1e12) * FLEET_J_PER_TH;   // TH × J/TH
+  const kwh    = joules / 3.6e6;
+  return { hashes, kwh, usd: kwh * MEDIAN_USD_PER_KWH };
+};
+
+const fmtEnergy = kwh =>
+  kwh >= 1e6 ? `${(kwh / 1e6).toFixed(2)} GWh` :
+  kwh >= 1e3 ? `${(kwh / 1e3).toFixed(1)} MWh` :
+               `${kwh.toFixed(0)} kWh`;
+
+const fmtUSD = usd =>
+  usd >= 1e6 ? `$${(usd / 1e6).toFixed(2)}M` :
+               `$${Math.round(usd).toLocaleString()}`;
+
+const fmtSignedUSD = usd => `${usd < 0 ? '−' : '+'}${fmtUSD(Math.abs(usd))}`;
+
+// sats → USD at the current BTC price; null when the price feed is unavailable
+const satsToUSD = sats =>
+  btcPrice != null && sats != null ? (sats / 1e8) * btcPrice : null;
+
+const fmtHashrate = h =>
+  h >= 1e18 ? `${(h / 1e18).toFixed(1)} EH/s` :
+  h >= 1e15 ? `${(h / 1e15).toFixed(1)} PH/s` :
+  h >= 1e12 ? `${(h / 1e12).toFixed(1)} TH/s` :
+              `${h.toLocaleString()} H/s`;
+
+// Coinbase tags and pool names are arbitrary bytes — escape before innerHTML
+const esc = s => String(s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+// ── Pool geolocation registry ────────────────────────────────────────────────
+// No public API exposes mining facility locations, so this is a hand-kept map
+// of pool HQ + known facility regions, keyed by mempool.space pool slug.
+// Pool-level location is inherently approximate: pooled hashrate aggregates
+// member facilities all over the world.
+const POOL_GEO = {
+  foundryusa:  { hq: 'Rochester, NY, USA',      facilities: 'USA & Canada (institutional clients)' },
+  antpool:     { hq: 'Beijing, China',          facilities: 'Global — Asia, North America' },
+  f2pool:      { hq: 'Singapore',               facilities: 'Global — Asia, EU, Americas' },
+  viabtc:      { hq: 'Shenzhen, China',         facilities: 'Global — Asia, Americas' },
+  binancepool: { hq: 'Global (undisclosed)',    facilities: 'Global member miners' },
+  marapool:    { hq: 'Fort Lauderdale, FL, USA',facilities: 'Texas, Nebraska, North Dakota, UAE, Paraguay' },
+  luxor:       { hq: 'Seattle, WA, USA',        facilities: 'North America' },
+  braiinspool: { hq: 'Prague, Czechia',         facilities: 'Global member miners' },
+  ocean:       { hq: 'USA',                     facilities: 'Global member miners' },
+  sbicrypto:   { hq: 'Tokyo, Japan',            facilities: 'Asia, North America' },
+  poolin:      { hq: 'Hong Kong',               facilities: 'Global — Asia, Americas' },
+  btccom:      { hq: 'Shenzhen, China',         facilities: 'Global — Asia, Americas' },
+  cloverpool:  { hq: 'Shenzhen, China',         facilities: 'Global — Asia, Americas' },
+  spiderpool:  { hq: 'China',                   facilities: 'Asia' },
+  secpool:     { hq: 'China',                   facilities: 'Asia' },
+  whitepool:   { hq: 'EU (WhiteBIT)',           facilities: 'Europe' },
+  emcdpool:    { hq: 'Moscow, Russia',          facilities: 'Russia & CIS' },
+  kucoinpool:  { hq: 'Seychelles',              facilities: 'Global member miners' },
+  ultimuspool: { hq: 'USA',                     facilities: 'North America' },
+  bitfufupool: { hq: 'Singapore',               facilities: 'Global (cloud hashrate)' },
+};
 
 // Security tiers — blocks crystallize as they sink deeper into the chain
 const TIERS = [
@@ -1434,13 +1511,14 @@ const secMeter = tier => `
 const get = url => fetch(url).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
 
 async function fetchAll() {
-  const [blks, mp, txs, fees] = await Promise.all([
+  const [blks, mp, txs, fees, prices] = await Promise.all([
     get(`${API}/v1/blocks`),
     get(`${API}/mempool`),
     get(`${API}/mempool/recent`),
     get(`${API}/v1/fees/recommended`),
+    get(`${API}/v1/prices`).catch(() => null), // price is optional — don't fail the refresh
   ]);
-  return { blks, mp, txs, fees };
+  return { blks, mp, txs, fees, prices };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1448,6 +1526,7 @@ async function fetchAll() {
 // ─────────────────────────────────────────────────────────────────────────────
 function updateHeader() {
   if (blocks.length)   document.getElementById('phHeight').textContent  = `#${blocks[0].height}`;
+  if (btcPrice != null) document.getElementById('phPrice').textContent  = `$${Math.round(btcPrice).toLocaleString()}`;
   if (mempoolStats)    document.getElementById('phMempool').textContent = `${mempoolStats.count.toLocaleString()} txs`;
   if (feeEstimates) {
     document.getElementById('phFast').textContent = `${feeEstimates.fastestFee} s/vB`;
@@ -1560,6 +1639,9 @@ function buildBlockCard(blk, isNew, depth) {
   const miner   = blk.extras?.pool?.name || blk.extras?.miner || '';
   const sizeStr = blk.size ? `${fmtSize(blk.size)}B` : `${(blk.weight / 4e6).toFixed(2)}MvB`;
   const confs   = depth + 1;
+  const energy  = blockEnergy(blk);
+  const rewardUSD = satsToUSD(blk.extras?.reward);
+  const profit    = energy && rewardUSD != null ? rewardUSD - energy.usd : null;
 
   const locks = tier === 0
     ? LOCK_SVG(true)
@@ -1578,6 +1660,11 @@ function buildBlockCard(blk, isNew, depth) {
       <div class="meta-row"><span class="meta-label">txs</span><span class="meta-val">${blk.tx_count.toLocaleString()}</span></div>
       <div class="meta-row"><span class="meta-label">size</span><span class="meta-val">${sizeStr}</span></div>
       <div class="meta-row"><span class="meta-label">age</span><span class="meta-val">${timeAgo(blk.timestamp)}</span></div>
+      ${energy ? `
+      <div class="meta-row" title="Estimated energy to mine: difficulty × 2³² hashes at ${FLEET_J_PER_TH} J/TH"><span class="meta-label">energy</span><span class="meta-val">⚡ ${fmtEnergy(energy.kwh)}</span></div>
+      <div class="meta-row" title="Estimated miner electricity spend at $${MEDIAN_USD_PER_KWH.toFixed(2)}/kWh (median mining rate)"><span class="meta-label">est. cost</span><span class="meta-val orange">${fmtUSD(energy.usd)}</span></div>` : ''}
+      ${profit != null ? `
+      <div class="meta-row" title="Block reward (${fmtBTC(blk.extras.reward)}) at $${Math.round(btcPrice).toLocaleString()}/BTC minus estimated energy cost"><span class="meta-label">profit</span><span class="meta-val" style="color:${profit >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtSignedUSD(profit)}</span></div>` : ''}
     </div>
     ${secMeter(tier)}`;
 
@@ -1867,16 +1954,22 @@ async function openBlockDetail(blk, cardEl) {
   document.getElementById('txDetailBlock').innerHTML =
     '<div class="txdetail-empty">Select a transaction<br>to inspect it</div>';
 
-  // Fetch full block data and transactions in parallel.
+  // Fetch full block data, transactions and pool stats in parallel.
   // /api/block/:hash guarantees all header fields (nonce, bits, merkle_root…)
   // in their correct types; the summary from /api/v1/blocks may be incomplete.
-  const [blkRes, txsRes] = await Promise.allSettled([
+  const poolSlug = blk.extras?.pool?.slug;
+  const [blkRes, txsRes, poolRes] = await Promise.allSettled([
     get(`${API}/block/${blk.id}`),
     get(`${API}/block/${blk.id}/txs`),
+    poolSlug ? get(`${API}/v1/mining/pool/${poolSlug}`) : Promise.reject(new Error('no pool')),
   ]);
 
-  const fullBlk = blkRes.status === 'fulfilled' ? blkRes.value : blk;
-  renderDetailInfo(fullBlk);
+  // Merge rather than replace: keep extras (pool, coinbase address…) from
+  // whichever endpoint provided them.
+  const fullBlk = blkRes.status === 'fulfilled'
+    ? { ...blk, ...blkRes.value, extras: { ...blk.extras, ...blkRes.value.extras } }
+    : blk;
+  renderDetailInfo(fullBlk, poolRes.status === 'fulfilled' ? poolRes.value : null);
 
   if (txsRes.status === 'fulfilled') renderDetailTxs(txsRes.value);
   else document.getElementById('detailTxList').innerHTML =
@@ -1885,13 +1978,25 @@ async function openBlockDetail(blk, cardEl) {
 
 function closeBlockDetail() { openMempoolDetail(); }
 
-function renderDetailInfo(blk) {
+function renderDetailInfo(blk, poolStats = null) {
   const miner      = blk.extras?.pool?.name || blk.extras?.miner || '—';
+  const poolSlug   = blk.extras?.pool?.slug;
+  const geo        = poolSlug ? POOL_GEO[poolSlug] : null;
+  const cbAddr     = blk.extras?.coinbaseAddress;
+  const cbAddrs    = blk.extras?.coinbaseAddresses;
+  const cbTag      = blk.extras?.coinbaseSignatureAscii;
+  const poolLink   = poolStats?.pool?.link;
+  const poolHash   = poolStats?.estimatedHashrate;
+  const poolBlocks = poolStats?.blockCount;
   const reward     = blk.extras?.reward;
   const totalFees  = blk.extras?.totalFees;
   const avgFeeRate = blk.extras?.avgFeeRate;
   const feeRange   = blk.extras?.feeRange;
   const vsize      = blk.weight ? Math.ceil(blk.weight / 4) : null;
+  const energy     = blockEnergy(blk);
+  const rewardUSD  = satsToUSD(reward);
+  const profit     = energy && rewardUSD != null ? rewardUSD - energy.usd : null;
+  const costRatio  = profit != null && rewardUSD > 0 ? (energy.usd / rewardUSD) * 100 : null;
 
   const field = (k, v, cls = '') =>
     `<div class="detail-field"><span class="dk">${k}</span><span class="dv ${cls}">${v}</span></div>`;
@@ -1901,7 +2006,7 @@ function renderDetailInfo(blk) {
 
   document.getElementById('detailInfo').innerHTML = `
     <div class="detail-height">#${blk.height}</div>
-    <div class="detail-miner">${miner !== '—' ? miner : ''}</div>
+    <div class="detail-miner">${miner !== '—' ? esc(miner) : ''}</div>
 
     <div class="detail-hash-box">
       <div style="color:var(--muted);font-size:9px;margin-bottom:3px;text-transform:uppercase;letter-spacing:1.5px">Block Hash</div>
@@ -1921,16 +2026,56 @@ function renderDetailInfo(blk) {
 
     ${section('Fees & Reward')}
     ${reward     != null ? field('Reward',       fmtBTC(reward),     'orange') : ''}
+    ${rewardUSD  != null ? field('Reward (USD)', fmtUSD(rewardUSD),  'green')  : ''}
+    ${btcPrice   != null ? field('BTC price',    `$${Math.round(btcPrice).toLocaleString()}`) : ''}
     ${totalFees  != null ? field('Total fees',   fmtBTC(totalFees),  'green')  : ''}
     ${avgFeeRate != null ? field('Avg fee rate', `${avgFeeRate} sat/vB`) : ''}
     ${feeRange   != null ? field('Fee range',    `${feeRange[0]}–${feeRange[feeRange.length-1]} sat/vB`) : ''}
 
+    ${section('Miner')}
+    ${field('Pool', esc(miner))}
+    ${poolLink ? field('Website',
+      `<a href="${esc(poolLink)}" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none">${esc(poolLink.replace(/^https?:\/\//, ''))}</a>`) : ''}
+    ${cbAddr ? field('Payout address',
+      `<a href="https://mempool.space/address/${esc(cbAddr)}" target="_blank" rel="noopener" style="color:var(--steel);font-size:9px;text-decoration:none">${esc(cbAddr)}</a>`) : ''}
+    ${Array.isArray(cbAddrs) && cbAddrs.length > 1 ? field('Payout outputs', `${cbAddrs.length} addresses`) : ''}
+    ${cbTag ? field('Coinbase tag', `<span style="font-size:9px;color:var(--amber)">${esc(cbTag)}</span>`) : ''}
+    ${geo ? field('HQ (approx.)', geo.hq) : ''}
+    ${geo ? field('Facilities',   geo.facilities) : ''}
+    ${poolHash   != null ? field('Pool hashrate', fmtHashrate(poolHash), 'orange') : ''}
+    ${poolBlocks != null ? field('Blocks 24h / all', `${poolBlocks['24h']} / ${Number(poolBlocks.all).toLocaleString()}`) : ''}
+    ${geo ? `<p class="verify-note">Location is pool-level and approximate — pooled hashrate
+      aggregates member facilities worldwide; the coinbase address is where this
+      block's reward was paid.</p>` : ''}
+
     ${section('Mining')}
-    ${field('Miner',       miner)}
     ${field('Nonce',       blk.nonce ?? '—')}
     ${field('Bits',        blk.bits ?? '—')}
     ${field('Difficulty',  blk.difficulty ? Number(blk.difficulty).toExponential(3) : '—')}
     ${field('Version',     `0x${(blk.version >>> 0).toString(16).toUpperCase()}`)}
+
+    ${energy ? `
+    ${section('Energy & Profitability')}
+    ${field('Expected hashes',  energy.hashes.toExponential(3))}
+    ${field('Fleet efficiency', `${FLEET_J_PER_TH} J/TH`)}
+    ${field('Energy consumed',  `⚡ ${fmtEnergy(energy.kwh)}`, 'orange')}
+    ${field('Energy price',     `$${MEDIAN_USD_PER_KWH.toFixed(2)}/kWh (median)`)}
+    ${field('Est. energy cost', fmtUSD(energy.usd), 'orange')}
+    ${rewardUSD != null ? field('Block reward', `${fmtBTC(reward)} ≈ ${fmtUSD(rewardUSD)}`, 'green') : ''}
+    ${profit    != null ? field('Net P&amp;L', fmtSignedUSD(profit), profit >= 0 ? 'green' : 'red') : ''}
+    ${costRatio != null ? field('Energy / reward', `${costRatio.toFixed(0)}% of reward`) : ''}
+    ${profit    != null ? field('Verdict',
+        profit >= 0 ? '▲ PROFITABLE' : '▼ UNPROFITABLE',
+        profit >= 0 ? 'green' : 'red') : ''}
+    <p class="verify-note">
+      Estimate: finding a block at this difficulty takes on average
+      <code>difficulty × 2³²</code> hashes. At a network-average efficiency of
+      <code>${FLEET_J_PER_TH} J/TH</code> and a median industrial mining rate of
+      <code>$${MEDIAN_USD_PER_KWH.toFixed(2)}/kWh</code>, that hashwork costs the
+      estimate shown. P&amp;L compares the coinbase reward (subsidy + fees) at the
+      current BTC price against electricity only — hardware, hosting and staff
+      are not included. Actual spend varies with luck and power deals.
+    </p>` : ''}
 
     ${section('Hashes')}
     ${field('Merkle root',
@@ -2062,7 +2207,7 @@ async function refresh(isFirst = false) {
   try {
     status.textContent = 'Fetching…';
 
-    const { blks, mp, txs, fees } = await fetchAll();
+    const { blks, mp, txs, fees, prices } = await fetchAll();
 
     const prevH = blocks.length ? blocks[0].height : null;
 
@@ -2070,6 +2215,7 @@ async function refresh(isFirst = false) {
     mempoolStats = mp;
     feeEstimates = fees;
     recentTxs    = txs;
+    btcPrice     = prices?.USD ?? btcPrice; // keep last known price on feed hiccup
 
     renderChain();
     updateForgeClock();
