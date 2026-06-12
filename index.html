@@ -295,6 +295,8 @@
     .mkt-row {
       font-family: 'Share Tech Mono', monospace;
       font-size: 11px;
+      padding-top: 10px;
+      padding-bottom: 10px;
       border-bottom: 1px solid rgba(86,120,190,.08);
     }
     .mkt-row:hover { background: rgba(56,217,255,.04); }
@@ -308,7 +310,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .mkt-spark { width: 100%; height: 46px; display: block; cursor: crosshair; }
+    .mkt-spark { width: 100%; height: 64px; display: block; cursor: crosshair; }
 
     /* Difficulty chart fullscreen mode */
     #diffChartWrap:fullscreen {
@@ -2846,12 +2848,20 @@ window.addEventListener('resize', () => {
 // Markets — top 100 by market cap (CoinGecko) + 1-year sparkline per coin
 // ─────────────────────────────────────────────────────────────────────────────
 const COINGECKO  = 'https://api.coingecko.com/api/v3';
+const BINANCE    = 'https://data-api.binance.vision/api/v3'; // public market-data mirror, no key
 let   mktCoins   = null;          // cached /coins/markets payload
 let   mktFetched = 0;
 const mktCharts  = new Map();     // coin id -> [[ms, price], …] (1y, daily)
 const mktPending = new Set();     // ids queued or fetching
 const mktTries   = new Map();     // id -> failed attempts
+const mktSymbols = new Map();     // coin id -> ticker symbol, for the Binance pair lookup
+const mktNoBinance = new Set();   // ids with no Binance USDT pair — go straight to CoinGecko
 const mktQueue   = [];
+// USD-pegged tokens hidden from the top-20 list — flat charts, no market signal
+const STABLECOINS = new Set([
+  'USDT', 'USDC', 'USDS', 'USDE', 'DAI', 'FDUSD', 'TUSD', 'PYUSD',
+  'BUSD', 'USDD', 'USD1', 'USDP', 'GUSD', 'FRAX', 'USDB', 'BUIDL',
+]);
 let   mktWorking = false;
 let   mktFetchingId   = null; // id whose chart is downloading right now
 let   mktBackoffUntil = 0;    // timestamp until which we are rate-limited
@@ -2862,8 +2872,11 @@ async function loadMarkets() {
   if (mktCoins && Date.now() - mktFetched < 120000) { renderMarkets(); return; }
   el.innerHTML = '<div class="loading-state"><div class="spin"></div> Loading markets…</div>';
   try {
-    mktCoins = await get(`${COINGECKO}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=20&page=1&price_change_percentage=24h,1y`);
+    // over-fetch so the list still holds 20 coins after dropping stablecoins
+    const raw = await get(`${COINGECKO}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=30&page=1&price_change_percentage=24h,1y`);
+    mktCoins = raw.filter(c => !STABLECOINS.has((c.symbol || '').toUpperCase())).slice(0, 20);
     mktFetched = Date.now();
+    mktCoins.forEach(c => mktSymbols.set(c.id, (c.symbol || '').toUpperCase()));
   } catch (e) {
     el.innerHTML = '<div class="loading-state" style="color:var(--red)">Failed to load market data — CoinGecko may be rate-limiting, try again in a minute</div>';
     return;
@@ -2882,7 +2895,7 @@ function renderMarkets() {
     : `<span style="color:var(--${v >= 0 ? 'green' : 'red'})">${v >= 0 ? '+' : ''}${v.toFixed(1)}%</span>`;
 
   el.innerHTML = `
-    <div class="alt-title">Top 20 Cryptocurrencies</div>
+    <div class="alt-title">Top 20 Cryptocurrencies <span style="color:var(--muted);font-weight:500">· stablecoins excluded</span></div>
     <div class="mkt-head">
       <span>#</span><span>Coin</span><span>Price</span><span>24h</span>
       <span>Market Cap</span><span>Volume 24h</span><span>5 Years</span>
@@ -2905,8 +2918,9 @@ function renderMarkets() {
     </div>
     <p class="verify-note" style="margin-top:12px">
       Market data: CoinGecko public API, refreshed on view change (2 min cache).
-      5-year charts (weekly granularity) load lazily as rows scroll into view to
-      respect the public rate limit — hover a chart for the crosshair readout.
+      5-year charts (weekly granularity) load lazily as rows scroll into view,
+      served from Binance public klines with CoinGecko as fallback to spread
+      load across rate limits — hover a chart for the crosshair readout.
     </p>`;
 
   // lazy-load each 1-year chart when its row scrolls into view
@@ -2944,12 +2958,37 @@ function startMktTicker() {
   }, 500);
 }
 
+// 5-year weekly chart from Binance klines — one request per coin against a
+// public endpoint with generous limits, so no inter-request throttling needed.
+async function fetchSparkBinance(id) {
+  const sym = mktSymbols.get(id);
+  if (!sym || sym === 'USDT') throw new Error('no pair'); // USDT has no USDT quote pair
+  const kl = await get(`${BINANCE}/klines?symbol=${encodeURIComponent(sym)}USDT&interval=1w&limit=261`);
+  if (!Array.isArray(kl) || kl.length < 2) throw new Error('empty');
+  return kl.map(k => [k[0], parseFloat(k[4])]); // [open time, close price]
+}
+
 async function runSparkQueue() {
   if (mktWorking) return;
   mktWorking = true;
   while (mktQueue.length) {
     const id = mktQueue.shift();
     mktFetchingId = id;
+
+    // Binance first — it carries most of the chart traffic so CoinGecko's
+    // public rate limit is only touched by coins Binance doesn't list.
+    if (!mktNoBinance.has(id)) {
+      try {
+        mktCharts.set(id, await fetchSparkBinance(id));
+        mktFetchingId = null;
+        document.querySelectorAll(`.mkt-spark[data-id="${CSS.escape(id)}"]`).forEach(cv => drawSpark(cv));
+        await new Promise(r => setTimeout(r, 250)); // courtesy spacing only
+        continue;
+      } catch (e) {
+        mktNoBinance.add(id); // unlisted pair (or geo-block) — use CoinGecko from now on
+      }
+    }
+
     try {
       const d = await get(`${COINGECKO}/coins/${encodeURIComponent(id)}/market_chart?vs_currency=usd&days=1825`);
       // API returns daily points for long ranges — thin to weekly, keep the last
@@ -3003,7 +3042,7 @@ function drawSpark(cv, hoverX = null, hoverY = null) {
       const qi = mktQueue.indexOf(id);
       if (qi >= 0) {
         const backoff = Math.max(0, mktBackoffUntil - Date.now());
-        const eta = Math.ceil(qi * 3 + 3 + backoff / 1000);
+        const eta = Math.ceil(qi + 1 + backoff / 1000);
         txt = backoff > 0 ? `rate-limited · retry ~${eta}s` : `chart in ~${eta}s`;
       } else {
         txt = 'chart queues on scroll';
