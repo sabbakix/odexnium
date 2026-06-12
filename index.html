@@ -2867,9 +2867,47 @@ let   mktFetchingId   = null; // id whose chart is downloading right now
 let   mktBackoffUntil = 0;    // timestamp until which we are rate-limited
 let   mktTicker       = null; // repaints placeholder countdowns
 
+// Persistent cache: coin list + downloaded charts live in localStorage so they
+// survive reloads and sessions. The APIs are hit at most once per MKT_TTL,
+// unless the user forces a refresh with the button in the panel header.
+const MKT_CACHE_KEY = 'odexnium-mkt-cache-v1';
+const MKT_TTL = 86400000; // 24 h
+
+function loadMktCache(maxAge = MKT_TTL) {
+  try {
+    const c = JSON.parse(localStorage.getItem(MKT_CACHE_KEY));
+    if (!c?.coins?.length || Date.now() - c.savedAt > maxAge) return false;
+    mktCoins   = c.coins;
+    mktFetched = c.savedAt;
+    for (const [id, prices] of Object.entries(c.charts || {})) mktCharts.set(id, prices);
+    mktCoins.forEach(co => mktSymbols.set(co.id, (co.symbol || '').toUpperCase()));
+    return true;
+  } catch (e) { return false; }
+}
+
+function saveMktCache() {
+  if (!mktCoins) return;
+  try {
+    localStorage.setItem(MKT_CACHE_KEY, JSON.stringify({
+      savedAt: mktFetched,
+      coins:   mktCoins,
+      charts:  Object.fromEntries(mktCharts),
+    }));
+  } catch (e) { /* quota exceeded or private mode — cache is best-effort */ }
+}
+
+function forceMktRefresh() {
+  try { localStorage.removeItem(MKT_CACHE_KEY); } catch (e) {}
+  mktCoins = null; mktFetched = 0;
+  mktCharts.clear(); mktPending.clear(); mktTries.clear(); mktNoBinance.clear();
+  mktQueue.length = 0;
+  loadMarkets();
+}
+
 async function loadMarkets() {
   const el = document.getElementById('marketsContent');
-  if (mktCoins && Date.now() - mktFetched < 120000) { renderMarkets(); return; }
+  if (!mktCoins) loadMktCache();
+  if (mktCoins && Date.now() - mktFetched < MKT_TTL) { renderMarkets(); return; }
   el.innerHTML = '<div class="loading-state"><div class="spin"></div> Loading markets…</div>';
   try {
     // over-fetch so the list still holds 20 coins after dropping stablecoins
@@ -2877,7 +2915,10 @@ async function loadMarkets() {
     mktCoins = raw.filter(c => !STABLECOINS.has((c.symbol || '').toUpperCase())).slice(0, 20);
     mktFetched = Date.now();
     mktCoins.forEach(c => mktSymbols.set(c.id, (c.symbol || '').toUpperCase()));
+    saveMktCache();
   } catch (e) {
+    // fetch failed — fall back to the stale cache rather than showing nothing
+    if (loadMktCache(Infinity)) { renderMarkets(); return; }
     el.innerHTML = '<div class="loading-state" style="color:var(--red)">Failed to load market data — CoinGecko may be rate-limiting, try again in a minute</div>';
     return;
   }
@@ -2895,7 +2936,11 @@ function renderMarkets() {
     : `<span style="color:var(--${v >= 0 ? 'green' : 'red'})">${v >= 0 ? '+' : ''}${v.toFixed(1)}%</span>`;
 
   el.innerHTML = `
-    <div class="alt-title">Top 20 Cryptocurrencies <span style="color:var(--muted);font-weight:500">· stablecoins excluded</span></div>
+    <div class="alt-title" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span>Top 20 Cryptocurrencies <span style="color:var(--muted);font-weight:500">· stablecoins excluded</span></span>
+      <button class="scale-btn" id="mktRefreshBtn" title="Clear the local cache and re-download everything from Binance / CoinGecko">↻ Fresh data</button>
+      <span style="font:500 11px 'Rajdhani',sans-serif;letter-spacing:1px;color:var(--muted);text-transform:none">updated ${new Date(mktFetched).toLocaleString()}</span>
+    </div>
     <div class="mkt-head">
       <span>#</span><span>Coin</span><span>Price</span><span>24h</span>
       <span>Market Cap</span><span>Volume 24h</span><span>5 Years</span>
@@ -2917,12 +2962,16 @@ function renderMarkets() {
       </div>`).join('')}
     </div>
     <p class="verify-note" style="margin-top:12px">
-      Market data: CoinGecko public API, refreshed on view change (2 min cache).
-      5-year charts (weekly granularity) load lazily as rows scroll into view,
-      served from Binance public klines with CoinGecko as fallback to spread
-      load across rate limits. Hover a chart for a date-synced crosshair across
-      all coins — click to pin it in place, click again to release.
+      Market data: CoinGecko public API, cached locally in your browser and
+      refreshed at most once per day — use the Fresh data button to force a
+      clean re-download. 5-year charts (weekly granularity) load lazily as rows
+      scroll into view, served from Binance public klines with CoinGecko as
+      fallback to spread load across rate limits. Hover a chart for a
+      date-synced crosshair across all coins — click to pin it in place, click
+      again to release.
     </p>`;
+
+  document.getElementById('mktRefreshBtn').addEventListener('click', forceMktRefresh);
 
   // lazy-load each 1-year chart when its row scrolls into view
   const io = new IntersectionObserver(entries => {
@@ -2981,6 +3030,7 @@ async function runSparkQueue() {
     if (!mktNoBinance.has(id)) {
       try {
         mktCharts.set(id, await fetchSparkBinance(id));
+        saveMktCache();
         mktFetchingId = null;
         document.querySelectorAll(`.mkt-spark[data-id="${CSS.escape(id)}"]`).forEach(cv => drawSpark(cv));
         await new Promise(r => setTimeout(r, 250)); // courtesy spacing only
@@ -2998,6 +3048,7 @@ async function runSparkQueue() {
         prices.push(d.prices[d.prices.length - 1]);
       }
       mktCharts.set(id, prices);
+      saveMktCache();
       mktFetchingId = null;
       document.querySelectorAll(`.mkt-spark[data-id="${CSS.escape(id)}"]`).forEach(cv => drawSpark(cv));
       await new Promise(r => setTimeout(r, 3000)); // stay under the public rate limit
