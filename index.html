@@ -120,23 +120,12 @@
     .logo { display: flex; align-items: center; gap: 16px; }
 
     .logo-coin {
-      width: 48px; height: 48px;
+      width: 52px; height: 52px;
       position: relative;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 24px; font-weight: 900;
-      color: #0a0c14;
       flex-shrink: 0;
-      background: conic-gradient(from 200deg, #ffb84d, #ff8c00, #ffd98a, #ff9d1a, #ffb84d);
-      clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
       animation: coinPulse 3s ease-in-out infinite;
     }
-    .logo-coin::before {
-      content: '';
-      position: absolute; inset: 3px;
-      background: radial-gradient(circle at 35% 30%, #ffd98a, #f7931a 70%);
-      clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
-      z-index: -1;
-    }
+    .logo-coin svg { width: 100%; height: 100%; display: block; }
     @keyframes coinPulse {
       0%, 100% { filter: drop-shadow(0 0 8px rgba(255,163,26,.5)); }
       50%      { filter: drop-shadow(0 0 22px rgba(255,163,26,.9)); }
@@ -720,6 +709,36 @@
       border-color: var(--cyan) !important;
       transform: translateX(4px);
     }
+
+    /* triangle on the selected card pointing at the detail panel —
+       the displayed data refers to this block */
+    .sel-arrow {
+      position: absolute;
+      right: 3px; top: 50%;
+      width: 0; height: 0;
+      border-top: 7px solid transparent;
+      border-bottom: 7px solid transparent;
+      border-left: 9px solid var(--cyan);
+      filter: drop-shadow(0 0 6px rgba(56,217,255,.8));
+      opacity: 0;
+      transform: translateY(-50%) translateX(-4px);
+      transition: opacity .2s, transform .2s;
+      pointer-events: none;
+    }
+    .block-card.selected .sel-arrow {
+      opacity: 1;
+      animation: arrowNudge 1.2s ease-in-out infinite;
+    }
+    @keyframes arrowNudge {
+      0%, 100% { transform: translateY(-50%) translateX(0); }
+      50%      { transform: translateY(-50%) translateX(3px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .block-card.selected .sel-arrow {
+        animation: none;
+        transform: translateY(-50%) translateX(0);
+      }
+    }
     /* !important would silence the pending card's pulse animation,
        so the selected glow applies to mined blocks only */
     .block-card.selected:not(.pending) {
@@ -1236,7 +1255,22 @@
 <!-- ══ Header ══════════════════════════════════════════════════════ -->
 <header>
   <div class="logo">
-    <div class="logo-coin">₿</div>
+    <div class="logo-coin" role="img" aria-label="Odexnium logo — 0x hexagon">
+      <svg viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id="hexGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0"   stop-color="#ffd98a"/>
+            <stop offset=".55" stop-color="#ffa31a"/>
+            <stop offset="1"   stop-color="#ff7a00"/>
+          </linearGradient>
+        </defs>
+        <polygon points="32,4 56.2,18 56.2,46 32,60 7.8,46 7.8,18" fill="url(#hexGrad)"/>
+        <polygon points="32,9 51.9,20.5 51.9,43.5 32,55 12.1,43.5 12.1,20.5"
+                 fill="none" stroke="rgba(10,12,20,.35)" stroke-width="1.2"/>
+        <text x="32" y="38.5" text-anchor="middle" font-family="Orbitron, sans-serif"
+              font-size="17" font-weight="900" fill="#0a0c14" letter-spacing="-.5">0x</text>
+      </svg>
+    </div>
     <div class="logo-text">
       <span class="logo-name">Odexnium</span>
       <span class="logo-sub">Blockchain Services</span>
@@ -1608,6 +1642,7 @@ function buildPendingCard() {
     <svg class="forge-border" aria-hidden="true"><rect/></svg>
     <div class="forge-ring"></div>
     <div class="forge-core"></div>
+    <div class="sel-arrow"></div>
     <div class="block-top">
       <div class="block-height">#${nextH}</div>
       <div class="block-locks" title="Not yet mined">${LOCK_SVG(true)}</div>
@@ -1649,6 +1684,7 @@ function buildBlockCard(blk, isNew, depth) {
 
   d.innerHTML = `
     ${tier === 3 ? SHIELD_SVG : ''}
+    <div class="sel-arrow"></div>
     <div class="block-top">
       <div class="block-height">#${blk.height}</div>
       <div class="block-locks" title="${confs} confirmation${confs > 1 ? 's' : ''}">${locks}</div>
