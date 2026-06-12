@@ -2849,7 +2849,7 @@ window.addEventListener('resize', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 const COINGECKO  = 'https://api.coingecko.com/api/v3';
 const BINANCE    = 'https://data-api.binance.vision/api/v3'; // public market-data mirror, no key
-let   mktCoins   = null;          // cached /coins/markets payload
+let   mktCoins   = null;          // top 20 displayed coins, ranked by market cap
 let   mktFetched = 0;
 const mktCharts  = new Map();     // coin id -> [[ms, price], …] (1y, daily)
 const mktPending = new Set();     // ids queued or fetching
@@ -2857,10 +2857,11 @@ const mktTries   = new Map();     // id -> failed attempts
 const mktSymbols = new Map();     // coin id -> ticker symbol, for the Binance pair lookup
 const mktNoBinance = new Set();   // ids with no Binance USDT pair — go straight to CoinGecko
 const mktQueue   = [];
-// USD-pegged tokens hidden from the top-20 list — flat charts, no market signal
+// USD-pegged tokens hidden from the coin list — flat charts, no market signal
 const STABLECOINS = new Set([
   'USDT', 'USDC', 'USDS', 'USDE', 'DAI', 'FDUSD', 'TUSD', 'PYUSD',
   'BUSD', 'USDD', 'USD1', 'USDP', 'GUSD', 'FRAX', 'USDB', 'BUIDL',
+  'USDT0', 'SUSDE', 'SUSDS', 'USDTB', 'USDY', 'USDX', 'EURC', 'RLUSD',
 ]);
 let   mktWorking = false;
 let   mktFetchingId   = null; // id whose chart is downloading right now
@@ -2870,27 +2871,39 @@ let   mktTicker       = null; // repaints placeholder countdowns
 // Persistent cache: coin list + downloaded charts live in localStorage so they
 // survive reloads and sessions. The APIs are hit at most once per MKT_TTL,
 // unless the user forces a refresh with the button in the panel header.
-const MKT_CACHE_KEY = 'odexnium-mkt-cache-v1';
-const MKT_TTL = 86400000; // 24 h
+const MKT_CACHE_KEY = 'odexnium-mkt-cache-v3'; // v3: top 50 instead of top 20
+const MKT_TTL      = 86400000;     // refresh live numbers at most once per day
+const MKT_META_TTL = 7 * 86400000; // names/icons/supply drift slowly — weekly
+
+let mktMeta   = null; // ~60 coins with CoinGecko metadata (name, icon, supply)
+let mktMetaAt = 0;
+
+function mktRank() {
+  // top 50 by market cap — live Binance price × CoinGecko circulating supply
+  mktCoins = [...mktMeta].sort((a, b) => (b.market_cap || 0) - (a.market_cap || 0)).slice(0, 50);
+  mktMeta.forEach(c => mktSymbols.set(c.id, (c.symbol || '').toUpperCase()));
+}
 
 function loadMktCache(maxAge = MKT_TTL) {
   try {
     const c = JSON.parse(localStorage.getItem(MKT_CACHE_KEY));
-    if (!c?.coins?.length || Date.now() - c.savedAt > maxAge) return false;
-    mktCoins   = c.coins;
+    if (!c?.meta?.length || Date.now() - c.savedAt > maxAge) return false;
+    mktMeta    = c.meta;
+    mktMetaAt  = c.metaAt || c.savedAt;
     mktFetched = c.savedAt;
     for (const [id, prices] of Object.entries(c.charts || {})) mktCharts.set(id, prices);
-    mktCoins.forEach(co => mktSymbols.set(co.id, (co.symbol || '').toUpperCase()));
+    mktRank();
     return true;
   } catch (e) { return false; }
 }
 
 function saveMktCache() {
-  if (!mktCoins) return;
+  if (!mktMeta) return;
   try {
     localStorage.setItem(MKT_CACHE_KEY, JSON.stringify({
       savedAt: mktFetched,
-      coins:   mktCoins,
+      metaAt:  mktMetaAt,
+      meta:    mktMeta,
       charts:  Object.fromEntries(mktCharts),
     }));
   } catch (e) { /* quota exceeded or private mode — cache is best-effort */ }
@@ -2898,30 +2911,67 @@ function saveMktCache() {
 
 function forceMktRefresh() {
   try { localStorage.removeItem(MKT_CACHE_KEY); } catch (e) {}
-  mktCoins = null; mktFetched = 0;
+  mktCoins = mktMeta = null; mktFetched = mktMetaAt = 0;
   mktCharts.clear(); mktPending.clear(); mktTries.clear(); mktNoBinance.clear();
   mktQueue.length = 0;
   loadMarkets();
 }
 
+// Metadata (names, icons, circulating supply, ranking seed) — CoinGecko is the
+// only free source for these. Also serves as the price fallback when Binance
+// is unreachable, since its payload carries a full set of live numbers too.
+async function fetchMktMeta() {
+  // over-fetch so the list still holds 50 coins after dropping stablecoins
+  const raw = await get(`${COINGECKO}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=65&page=1&price_change_percentage=24h,1y`);
+  mktMeta   = raw.filter(c => !STABLECOINS.has((c.symbol || '').toUpperCase()));
+  mktMetaAt = Date.now();
+}
+
+// Primary live source: the Binance 24 h ticker (a single request covering all
+// pairs) overlaid on the metadata. Binance publishes no supply or market cap,
+// so cap is computed from its live price and CoinGecko's circulating supply.
+async function fetchMktBinance() {
+  const tk = await get(`${BINANCE}/ticker/24hr`);
+  const bySym = new Map(tk.map(t => [t.symbol, t]));
+  let hits = 0;
+  for (const c of mktMeta) {
+    const t = bySym.get((c.symbol || '').toUpperCase() + 'USDT');
+    if (!t) continue;
+    hits++;
+    c.current_price = parseFloat(t.lastPrice);
+    c.price_change_percentage_24h_in_currency = parseFloat(t.priceChangePercent);
+    c.total_volume  = parseFloat(t.quoteVolume);
+    if (c.circulating_supply) c.market_cap = c.current_price * c.circulating_supply;
+  }
+  if (!hits) throw new Error('no USDT pairs in ticker'); // treat as a failure
+}
+
 async function loadMarkets() {
   const el = document.getElementById('marketsContent');
-  if (!mktCoins) loadMktCache();
+  if (!mktMeta) loadMktCache();
   if (mktCoins && Date.now() - mktFetched < MKT_TTL) { renderMarkets(); return; }
   el.innerHTML = '<div class="loading-state"><div class="spin"></div> Loading markets…</div>';
-  try {
-    // over-fetch so the list still holds 20 coins after dropping stablecoins
-    const raw = await get(`${COINGECKO}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=30&page=1&price_change_percentage=24h,1y`);
-    mktCoins = raw.filter(c => !STABLECOINS.has((c.symbol || '').toUpperCase())).slice(0, 20);
-    mktFetched = Date.now();
-    mktCoins.forEach(c => mktSymbols.set(c.id, (c.symbol || '').toUpperCase()));
-    saveMktCache();
-  } catch (e) {
-    // fetch failed — fall back to the stale cache rather than showing nothing
-    if (loadMktCache(Infinity)) { renderMarkets(); return; }
+
+  if (!mktMeta || Date.now() - mktMetaAt > MKT_META_TTL) {
+    try { await fetchMktMeta(); } catch (e) { /* keep the stale meta if any */ }
+  }
+  if (!mktMeta && !loadMktCache(Infinity)) {
     el.innerHTML = '<div class="loading-state" style="color:var(--red)">Failed to load market data — CoinGecko may be rate-limiting, try again in a minute</div>';
     return;
   }
+
+  try {
+    await fetchMktBinance();
+  } catch (e) {
+    // Binance down or geo-blocked — fall back to fresh CoinGecko numbers,
+    // unless the metadata fetch above just delivered them anyway
+    if (Date.now() - mktMetaAt > 60000) {
+      try { await fetchMktMeta(); } catch (e2) { /* stale numbers it is */ }
+    }
+  }
+  mktFetched = Date.now();
+  mktRank();
+  saveMktCache();
   renderMarkets();
 }
 
@@ -2937,7 +2987,7 @@ function renderMarkets() {
 
   el.innerHTML = `
     <div class="alt-title" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <span>Top 20 Cryptocurrencies <span style="color:var(--muted);font-weight:500">· stablecoins excluded</span></span>
+      <span>Top 50 Cryptocurrencies <span style="color:var(--muted);font-weight:500">· stablecoins excluded</span></span>
       <button class="scale-btn" id="mktRefreshBtn" title="Clear the local cache and re-download everything from Binance / CoinGecko">↻ Fresh data</button>
       <span style="font:500 11px 'Rajdhani',sans-serif;letter-spacing:1px;color:var(--muted);text-transform:none">updated ${new Date(mktFetched).toLocaleString()}</span>
     </div>
@@ -2962,31 +3012,25 @@ function renderMarkets() {
       </div>`).join('')}
     </div>
     <p class="verify-note" style="margin-top:12px">
-      Market data: CoinGecko public API, cached locally in your browser and
-      refreshed at most once per day — use the Fresh data button to force a
-      clean re-download. 5-year charts (weekly granularity) load lazily as rows
-      scroll into view, served from Binance public klines with CoinGecko as
-      fallback to spread load across rate limits. Hover a chart for a
-      date-synced crosshair across all coins — click to pin it in place, click
-      again to release.
+      Market data: live prices, 24 h change and volume from the Binance public
+      ticker, with CoinGecko as fallback; names, icons and circulating supply
+      (for market cap) from CoinGecko, refreshed weekly. Everything is cached
+      locally in your browser and refreshed at most once per day — use the
+      Fresh data button to force a clean re-download. 5-year charts (weekly
+      granularity) download one-by-one, top to bottom, ~3 s apart to stay well
+      inside the public rate limits. Hover a chart for a date-synced crosshair
+      across all coins — click to pin it in place, click again to release.
     </p>`;
 
   document.getElementById('mktRefreshBtn').addEventListener('click', forceMktRefresh);
 
-  // lazy-load each 1-year chart when its row scrolls into view
-  const io = new IntersectionObserver(entries => {
-    for (const en of entries) {
-      if (!en.isIntersecting) continue;
-      io.unobserve(en.target);
-      queueSpark(en.target.dataset.id);
-    }
-  }, { root: el.closest('.alt-scroll'), rootMargin: '150px' });
-
   el.querySelectorAll('.mkt-spark').forEach(cv => {
     wireSpark(cv);
-    if (mktCharts.has(cv.dataset.id)) drawSpark(cv);
-    else { drawSpark(cv); io.observe(cv); } // paints the "loading…" placeholder
+    drawSpark(cv); // cached chart, or the queue-position placeholder
   });
+
+  // missing charts download one-by-one, top to bottom — see runSparkQueue
+  mktCoins.forEach(c => { if (!mktCharts.has(c.id)) queueSpark(c.id); });
 }
 
 function queueSpark(id) {
@@ -3033,7 +3077,7 @@ async function runSparkQueue() {
         saveMktCache();
         mktFetchingId = null;
         document.querySelectorAll(`.mkt-spark[data-id="${CSS.escape(id)}"]`).forEach(cv => drawSpark(cv));
-        await new Promise(r => setTimeout(r, 250)); // courtesy spacing only
+        await new Promise(r => setTimeout(r, 3000)); // ~3 s between requests
         continue;
       } catch (e) {
         mktNoBinance.add(id); // unlisted pair (or geo-block) — use CoinGecko from now on
@@ -3126,10 +3170,10 @@ function drawSpark(cv) {
       const qi = mktQueue.indexOf(id);
       if (qi >= 0) {
         const backoff = Math.max(0, mktBackoffUntil - Date.now());
-        const eta = Math.ceil(qi + 1 + backoff / 1000);
+        const eta = Math.ceil(qi * 3 + 3 + backoff / 1000);
         txt = backoff > 0 ? `rate-limited · retry ~${eta}s` : `chart in ~${eta}s`;
       } else {
-        txt = 'chart queues on scroll';
+        txt = 'chart unavailable';
       }
     }
     ctx.fillStyle = 'rgba(102,120,159,.55)';
