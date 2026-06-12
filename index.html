@@ -278,7 +278,7 @@
     /* ── Markets view ── */
     .mkt-head, .mkt-row {
       display: grid;
-      grid-template-columns: 30px minmax(150px, 1.1fr) 95px 62px 105px 105px minmax(190px, 1.5fr);
+      grid-template-columns: 30px minmax(150px, 1.1fr) 95px 62px 105px 105px minmax(266px, 2.1fr);
       gap: 10px;
       align-items: center;
       padding: 5px 8px;
@@ -295,8 +295,8 @@
     .mkt-row {
       font-family: 'Share Tech Mono', monospace;
       font-size: 11px;
-      padding-top: 10px;
-      padding-bottom: 10px;
+      padding-top: 0;
+      padding-bottom: 0;
       border-bottom: 1px solid rgba(86,120,190,.08);
     }
     .mkt-row:hover { background: rgba(56,217,255,.04); }
@@ -310,7 +310,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .mkt-spark { width: 100%; height: 64px; display: block; cursor: crosshair; }
+    .mkt-spark { width: 100%; height: 144px; display: block; cursor: crosshair; }
 
     /* Difficulty chart fullscreen mode */
     #diffChartWrap:fullscreen {
@@ -2920,7 +2920,8 @@ function renderMarkets() {
       Market data: CoinGecko public API, refreshed on view change (2 min cache).
       5-year charts (weekly granularity) load lazily as rows scroll into view,
       served from Binance public klines with CoinGecko as fallback to spread
-      load across rate limits — hover a chart for the crosshair readout.
+      load across rate limits. Hover a chart for a date-synced crosshair across
+      all coins — click to pin it in place, click again to release.
     </p>`;
 
   // lazy-load each 1-year chart when its row scrolls into view
@@ -3012,18 +3013,50 @@ async function runSparkQueue() {
   mktWorking = false;
 }
 
-function wireSpark(cv) {
-  // bounding-rect mapping — offsetX/Y disagree with clientWidth under page zoom
-  cv.addEventListener('mousemove', e => {
-    const r = cv.getBoundingClientRect();
-    drawSpark(cv,
-      (e.clientX - r.left) / r.width  * cv.clientWidth,
-      (e.clientY - r.top)  / r.height * cv.clientHeight);
-  });
-  cv.addEventListener('mouseleave', () => drawSpark(cv));
+// Crosshair state shared by every chart — anchored to a timestamp so the
+// vertical line marks the same date on all coins at once. A click freezes it
+// in place; a second click releases it back to following the mouse.
+let mktHoverT  = null;  // hovered timestamp (ms)
+let mktHoverY  = null;  // horizontal line, only on the chart under the mouse
+let mktHoverId = null;  // id of the chart under the mouse
+let mktHoverFrozen = false;
+
+function redrawSparks() {
+  document.querySelectorAll('.mkt-spark').forEach(cv => drawSpark(cv));
 }
 
-function drawSpark(cv, hoverX = null, hoverY = null) {
+function setSparkHover(cv, e) {
+  const data = mktCharts.get(cv.dataset.id);
+  if (!data?.length) return false;
+  // bounding-rect mapping — offsetX/Y disagree with clientWidth under page zoom
+  const r = cv.getBoundingClientRect();
+  const frac = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  const t0 = data[0][0], t1 = data[data.length - 1][0];
+  mktHoverT  = t0 + frac * (t1 - t0);
+  mktHoverId = cv.dataset.id;
+  mktHoverY  = (e.clientY - r.top) / r.height * cv.clientHeight;
+  return true;
+}
+
+function wireSpark(cv) {
+  cv.addEventListener('mousemove', e => {
+    if (mktHoverFrozen) return;
+    if (setSparkHover(cv, e)) redrawSparks();
+  });
+  cv.addEventListener('mouseleave', () => {
+    if (mktHoverFrozen) return;
+    mktHoverT = mktHoverId = mktHoverY = null;
+    redrawSparks();
+  });
+  cv.addEventListener('click', e => {
+    if (mktHoverFrozen) mktHoverFrozen = false;   // release the pinned line
+    else if (setSparkHover(cv, e)) mktHoverFrozen = true;
+    else return;                                  // no chart data yet — can't pin
+    redrawSparks();
+  });
+}
+
+function drawSpark(cv) {
   const data = mktCharts.get(cv.dataset.id);
   const dpr = window.devicePixelRatio || 1;
   const W = cv.clientWidth || 200, H = cv.clientHeight || 46;
@@ -3080,19 +3113,19 @@ function drawSpark(cv, hoverX = null, hoverY = null) {
   ctx.lineWidth = 1.1;
   ctx.stroke();
 
-  // crosshair + readout
-  if (hoverX != null) {
+  // crosshair + readout — shared across all charts, anchored to the same date
+  if (mktHoverT != null && mktHoverT >= t0 && mktHoverT <= t1) {
     let best = 0, bd = Infinity;
     for (let i = 0; i < data.length; i++) {
-      const d = Math.abs(X(data[i][0]) - hoverX);
+      const d = Math.abs(data[i][0] - mktHoverT);
       if (d < bd) { bd = d; best = i; }
     }
     const [t, v] = data[best], px = X(t), py = Y(v);
-    ctx.strokeStyle = 'rgba(217,230,255,.4)';
+    ctx.strokeStyle = mktHoverFrozen ? 'rgba(255,163,26,.55)' : 'rgba(217,230,255,.4)';
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
-    if (hoverY != null && hoverY >= 0 && hoverY <= H) {
-      ctx.beginPath(); ctx.moveTo(0, hoverY); ctx.lineTo(W, hoverY); ctx.stroke();
+    if (cv.dataset.id === mktHoverId && mktHoverY != null && mktHoverY >= 0 && mktHoverY <= H) {
+      ctx.beginPath(); ctx.moveTo(0, mktHoverY); ctx.lineTo(W, mktHoverY); ctx.stroke();
     }
     ctx.fillStyle = `rgb(${rgb})`;
     ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI * 2); ctx.fill();
